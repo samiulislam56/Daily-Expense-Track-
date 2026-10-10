@@ -1,0 +1,80 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Warm Parchment Light Palette */
+  --bg: #F9F8F5;
+  --surface: #FFFFFF;
+  --surface-elevated: #F4F1EB;
+  --surface-subtle: #EBE6DD;
+  --border: #E5DFD5;
+  --border-focus: #0D9488;
+  --text-ink: #112623;
+  --text-muted: #596D69;
+  --text-faint: #8E9F9C;
+  --accent: #0D9488;
+  --accent-hover: #0F766E;
+  --danger: #E11D48;
+  --success: #059669;
+  --warning: #D97706;
+}
+
+.dark {
+  /* Forest Slate Dark Palette */
+  --bg: #0A1312;
+  --surface: #11201E;
+  --surface-elevated: #172B28;
+  --surface-subtle: #1F3834;
+  --border: #223D39;
+  --border-focus: #14B8A6;
+  --text-ink: #EEF7F5;
+  --text-muted: #8DA4A0;
+  --text-faint: #5A706C;
+  --accent: #14B8A6;
+  --accent-hover: #2DD4BF;
+  --danger: #FB7185;
+  --success: #34D399;
+  --warning: #FBBF24;
+}
+
+@layer base {
+  body {
+    background-color: var(--bg);
+    color: var(--text-ink);
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  /* Currency and statistics tabular numerals */
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* Custom subtle scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

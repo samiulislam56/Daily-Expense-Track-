@@ -1,0 +1,321 @@
+import React, { useState, useMemo } from 'react';
+import { Header } from '../components/layout/Header.js';
+import { MagnificationDock } from '../components/layout/MagnificationDock.js';
+import { ScrollJourneyLine } from '../components/layout/ScrollJourneyLine.js';
+import { ToastContainer, ToastMessage } from '../components/common/Toast.js';
+import { DashboardMetrics } from '../features/analytics/DashboardMetrics.js';
+import { CategoryAnalytics } from '../features/analytics/CategoryAnalytics.js';
+import { ExpenseList } from '../features/expenses/ExpenseList.js';
+import { ExpenseFiltersBar } from '../features/expenses/ExpenseFilters.js';
+import { ExpenseFormModal } from '../features/expenses/ExpenseFormModal.js';
+import { DeleteConfirmModal } from '../features/expenses/DeleteConfirmModal.js';
+import { InAppCalculator } from '../features/calculator/InAppCalculator.js';
+import { SettingsView } from '../features/settings/SettingsView.js';
+
+import { useTheme } from '../hooks/useTheme.js';
+import {
+  useCategories,
+  useExpenses,
+  useDailySummary,
+  useMonthlySummary,
+  useCategorySummary,
+  useExpenseMutations,
+} from '../hooks/useExpenseQueries.js';
+import { ActiveTab, Expense, ExpenseFilters } from '../types/index.js';
+import { getTodayDateString, getCurrentMonthString } from '../lib/utils.js';
+
+export const App: React.FC = () => {
+  const { theme, setTheme } = useTheme();
+  const [activeTab, setActiveTab] = useState<ActiveTab>('overview');
+  const [selectedDate, setSelectedDate] = useState<string>(getTodayDateString());
+  const [currency, setCurrency] = useState<string>('BDT');
+
+  // Filters state
+  const [filters, setFilters] = useState<ExpenseFilters>({
+    page: 1,
+    pageSize: 20,
+  });
+
+  // Modals state
+  const [isAddModalOpen, setIsAddModalOpen] = useState<boolean>(false);
+  const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
+  const [expenseToDelete, setExpenseToDelete] = useState<Expense | null>(null);
+  const [prefilledAmount, setPrefilledAmount] = useState<string | null>(null);
+
+  // Toasts state
+  const [toasts, setToasts] = useState<ToastMessage[]>([]);
+
+  const addToast = (type: 'success' | 'error' | 'info', message: string, title?: string) => {
+    const id = Math.random().toString(36).substring(2, 9);
+    setToasts((prev) => [...prev, { id, type, message, title }]);
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 4000);
+  };
+
+  const removeToast = (id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  };
+
+  // Queries
+  const { data: categories = [] } = useCategories();
+
+  // Overview expenses filter vs History filters
+  const effectiveFilters = useMemo(() => {
+    if (activeTab === 'overview') {
+      return {
+        from: selectedDate,
+        to: selectedDate,
+        ...filters,
+      };
+    }
+    return filters;
+  }, [activeTab, selectedDate, filters]);
+
+  const { data: expensesResponse, isLoading: isLoadingExpenses } = useExpenses(effectiveFilters);
+  const expenses = expensesResponse?.data || [];
+  const meta = expensesResponse?.meta || { page: 1, pageSize: 20, totalCount: 0, totalPages: 1 };
+
+  // Summaries
+  const currentMonth = useMemo(() => selectedDate.substring(0, 7) || getCurrentMonthString(), [selectedDate]);
+  const { data: dailySummary } = useDailySummary(selectedDate);
+  const { data: monthlySummary } = useMonthlySummary(currentMonth);
+  const { data: categorySummary = [], isLoading: isLoadingCategorySummary } = useCategorySummary();
+
+  // Mutations
+  const { createMutation, updateMutation, deleteMutation } = useExpenseMutations();
+
+  // Handlers
+  const handleOpenAdd = (initialAmt?: string) => {
+    setEditingExpense(null);
+    setPrefilledAmount(initialAmt || null);
+    setIsAddModalOpen(true);
+  };
+
+  const handleEditExpense = (expense: Expense) => {
+    setEditingExpense(expense);
+    setPrefilledAmount(null);
+    setIsAddModalOpen(true);
+  };
+
+  const handleSaveExpense = async (payload: {
+    amountMinor: number;
+    categoryId: string;
+    expenseDate: string;
+    note?: string;
+    currencyCode?: string;
+  }) => {
+    if (editingExpense) {
+      await updateMutation.mutateAsync({
+        id: editingExpense.id,
+        payload,
+      });
+      addToast('success', 'Expense updated successfully.', 'Updated');
+    } else {
+      await createMutation.mutateAsync({
+        ...payload,
+        currencyCode: payload.currencyCode || currency,
+      });
+      addToast('success', 'Expense created and saved to database.', 'Expense Saved');
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!expenseToDelete) return;
+    try {
+      await deleteMutation.mutateAsync(expenseToDelete.id);
+      addToast('success', 'Expense was successfully removed.', 'Deleted');
+      setExpenseToDelete(null);
+    } catch {
+      addToast('error', 'Failed to delete expense. Please try again.', 'Error');
+    }
+  };
+
+  const handleTransferFromCalc = (amountDecimal: string) => {
+    handleOpenAdd(amountDecimal);
+    addToast('info', `Transferred ${amountDecimal} ${currency} to expense form.`, 'Calculator');
+  };
+
+  return (
+    <div className="min-h-screen bg-bg text-ink flex flex-col selection:bg-teal-500/20">
+      {/* Decorative SVG scroll line tracking progress */}
+      <ScrollJourneyLine />
+
+      {/* Main App Header */}
+      <Header
+        selectedDate={selectedDate}
+        onDateChange={setSelectedDate}
+        onOpenAddModal={() => handleOpenAdd()}
+        theme={theme}
+        onThemeChange={setTheme}
+      />
+
+      {/* Content Canvas */}
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-32">
+        {/* TAB: OVERVIEW */}
+        {activeTab === 'overview' && (
+          <div className="space-y-6">
+            {/* Top Metrics Strip */}
+            <DashboardMetrics
+              selectedDate={selectedDate}
+              dailyTotalMinor={dailySummary?.totalMinor || 0}
+              dailyCount={dailySummary?.count || 0}
+              monthlyTotalMinor={monthlySummary?.totalMinor || 0}
+              monthlyCount={monthlySummary?.count || 0}
+              currencyCode={currency}
+            />
+
+            {/* Split layout on wider screens: Main List + Calculator / Breakdown sidebar */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+              {/* Left Column: Expense List & Filters (8 cols) */}
+              <div className="lg:col-span-8 space-y-5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-lg font-bold text-ink">Daily Expenses</h2>
+                    <p className="text-xs text-ink-muted">
+                      Showing records for {selectedDate}
+                    </p>
+                  </div>
+                </div>
+
+                <ExpenseFiltersBar
+                  filters={filters}
+                  onFilterChange={setFilters}
+                  categories={categories}
+                  currentExpenses={expenses}
+                />
+
+                <ExpenseList
+                  expenses={expenses}
+                  isLoading={isLoadingExpenses}
+                  onEdit={handleEditExpense}
+                  onDelete={setExpenseToDelete}
+                  onOpenAddModal={() => handleOpenAdd()}
+                  currentPage={meta.page}
+                  totalPages={meta.totalPages}
+                  onPageChange={(page) => setFilters((prev) => ({ ...prev, page }))}
+                />
+              </div>
+
+              {/* Right Column: In-App Calculator & Category Breakdown preview (4 cols) */}
+              <div className="lg:col-span-4 space-y-6">
+                <InAppCalculator onTransferAmount={handleTransferFromCalc} />
+                <CategoryAnalytics
+                  categories={categorySummary}
+                  isLoading={isLoadingCategorySummary}
+                  currencyCode={currency}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB: HISTORY */}
+        {activeTab === 'history' && (
+          <div className="space-y-6 max-w-5xl mx-auto">
+            <div>
+              <h2 className="text-xl font-bold text-ink">Expense History</h2>
+              <p className="text-xs text-ink-muted">
+                Browse, search, and export all recorded expenses across dates
+              </p>
+            </div>
+
+            <ExpenseFiltersBar
+              filters={filters}
+              onFilterChange={setFilters}
+              categories={categories}
+              currentExpenses={expenses}
+            />
+
+            <ExpenseList
+              expenses={expenses}
+              isLoading={isLoadingExpenses}
+              onEdit={handleEditExpense}
+              onDelete={setExpenseToDelete}
+              onOpenAddModal={() => handleOpenAdd()}
+              currentPage={meta.page}
+              totalPages={meta.totalPages}
+              onPageChange={(page) => setFilters((prev) => ({ ...prev, page }))}
+            />
+          </div>
+        )}
+
+        {/* TAB: ANALYTICS */}
+        {activeTab === 'analytics' && (
+          <div className="space-y-6 max-w-4xl mx-auto">
+            <div>
+              <h2 className="text-xl font-bold text-ink">Spending Analytics</h2>
+              <p className="text-xs text-ink-muted">
+                Analyze categorical breakdown and monthly spending patterns
+              </p>
+            </div>
+
+            <DashboardMetrics
+              selectedDate={selectedDate}
+              dailyTotalMinor={dailySummary?.totalMinor || 0}
+              dailyCount={dailySummary?.count || 0}
+              monthlyTotalMinor={monthlySummary?.totalMinor || 0}
+              monthlyCount={monthlySummary?.count || 0}
+              currencyCode={currency}
+            />
+
+            <CategoryAnalytics
+              categories={categorySummary}
+              isLoading={isLoadingCategorySummary}
+              currencyCode={currency}
+            />
+          </div>
+        )}
+
+        {/* TAB: CALCULATOR */}
+        {activeTab === 'calculator' && (
+          <div className="flex flex-col items-center justify-center py-6">
+            <div className="text-center mb-6 max-w-md">
+              <h2 className="text-xl font-bold text-ink">Expense Calculator</h2>
+              <p className="text-xs text-ink-muted mt-1">
+                Perform calculations with keyboard support and transfer results directly into an expense entry.
+              </p>
+            </div>
+            <InAppCalculator onTransferAmount={handleTransferFromCalc} />
+          </div>
+        )}
+
+        {/* TAB: SETTINGS */}
+        {activeTab === 'settings' && (
+          <SettingsView
+            theme={theme}
+            onThemeChange={setTheme}
+            currency={currency}
+            onCurrencyChange={setCurrency}
+          />
+        )}
+      </main>
+
+      {/* Primary Magnification Navigation Dock (FR-15 & SRS 6.3) */}
+      <MagnificationDock activeTab={activeTab} onTabChange={setActiveTab} />
+
+      {/* Add / Edit Expense Form Modal */}
+      <ExpenseFormModal
+        isOpen={isAddModalOpen}
+        onClose={() => setIsAddModalOpen(false)}
+        categories={categories}
+        initialExpense={editingExpense}
+        initialAmount={prefilledAmount}
+        defaultDate={selectedDate}
+        onSave={handleSaveExpense}
+      />
+
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmModal
+        isOpen={Boolean(expenseToDelete)}
+        expense={expenseToDelete}
+        isDeleting={deleteMutation.isPending}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setExpenseToDelete(null)}
+      />
+
+      {/* Toast Feedback Region */}
+      <ToastContainer toasts={toasts} onDismiss={removeToast} />
+    </div>
+  );
+};
