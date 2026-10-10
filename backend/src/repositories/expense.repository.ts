@@ -9,12 +9,18 @@ export interface ExpenseRow {
   currency_code: string;
   expense_date: string;
   note: string | null;
+  type?: string;
+  account_id?: string | null;
+  tags?: string | null;
   created_at: string;
   updated_at: string;
   cat_id?: string;
   cat_name?: string;
   cat_icon_key?: string;
   cat_color_key?: string;
+  acc_id?: string;
+  acc_name?: string;
+  acc_type?: string;
 }
 
 export interface ExpenseDTO {
@@ -31,6 +37,14 @@ export interface ExpenseDTO {
   currencyCode: string;
   expenseDate: string;
   note: string | null;
+  type: 'expense' | 'income' | 'adjustment';
+  accountId?: string | null;
+  account?: {
+    id: string;
+    name: string;
+    type: string;
+  };
+  tags?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -39,6 +53,8 @@ export interface ExpenseFilterParams {
   from?: string;
   to?: string;
   categoryId?: string;
+  type?: 'expense' | 'income' | 'adjustment';
+  accountId?: string;
   q?: string;
   page: number;
   pageSize: number;
@@ -56,7 +72,6 @@ export interface PaginatedResult<T> {
 
 export class ExpenseRepository {
   private mapRow(row: ExpenseRow): ExpenseDTO {
-    // Normalise expense_date to YYYY-MM-DD string
     let dateStr = row.expense_date;
     if (typeof dateStr === 'object' && dateStr !== null && 'toISOString' in (dateStr as any)) {
       dateStr = (dateStr as unknown as Date).toISOString().split('T')[0];
@@ -72,6 +87,9 @@ export class ExpenseRepository {
       currencyCode: row.currency_code,
       expenseDate: dateStr,
       note: row.note ?? null,
+      type: (row.type as any) || 'expense',
+      accountId: row.account_id ?? null,
+      tags: row.tags ?? '',
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };
@@ -85,6 +103,14 @@ export class ExpenseRepository {
       };
     }
 
+    if (row.acc_id) {
+      dto.account = {
+        id: row.acc_id,
+        name: row.acc_name || '',
+        type: row.acc_type || 'cash',
+      };
+    }
+
     return dto;
   }
 
@@ -95,13 +121,17 @@ export class ExpenseRepository {
     currencyCode: string;
     expenseDate: string;
     note?: string | null;
+    type?: 'expense' | 'income' | 'adjustment';
+    accountId?: string | null;
+    tags?: string | null;
   }): Promise<ExpenseDTO> {
     const db = getDatabase();
     const id = crypto.randomUUID();
+    const type = data.type || 'expense';
 
     await db.query(
-      `INSERT INTO expenses (id, user_id, category_id, amount_minor, currency_code, expense_date, note)
-       VALUES ($1, $2, $3, $4, $5, $6::DATE, $7)`,
+      `INSERT INTO expenses (id, user_id, category_id, amount_minor, currency_code, expense_date, note, type, account_id, tags)
+       VALUES ($1, $2, $3, $4, $5, $6::DATE, $7, $8, $9, $10)`,
       [
         id,
         data.userId,
@@ -110,12 +140,15 @@ export class ExpenseRepository {
         data.currencyCode,
         data.expenseDate,
         data.note ?? null,
+        type,
+        data.accountId ?? null,
+        data.tags ?? '',
       ]
     );
 
     const created = await this.findById(id, data.userId);
     if (!created) {
-      throw new Error('Failed to retrieve created expense');
+      throw new Error('Failed to retrieve created transaction');
     }
     return created;
   }
@@ -126,10 +159,12 @@ export class ExpenseRepository {
       `SELECT
          e.id, e.user_id, e.category_id, e.amount_minor, e.currency_code,
          TO_CHAR(e.expense_date, 'YYYY-MM-DD') AS expense_date,
-         e.note, e.created_at, e.updated_at,
-         c.id AS cat_id, c.name AS cat_name, c.icon_key AS cat_icon_key, c.color_key AS cat_color_key
+         e.note, e.type, e.account_id, e.tags, e.created_at, e.updated_at,
+         c.id AS cat_id, c.name AS cat_name, c.icon_key AS cat_icon_key, c.color_key AS cat_color_key,
+         a.id AS acc_id, a.name AS acc_name, a.type AS acc_type
        FROM expenses e
        LEFT JOIN categories c ON e.category_id = c.id
+       LEFT JOIN accounts a ON e.account_id = a.id
        WHERE e.id = $1 AND e.user_id = $2`,
       [id, userId]
     );
@@ -158,9 +193,19 @@ export class ExpenseRepository {
       whereClauses.push(`e.category_id = $${params.length}`);
     }
 
+    if (filters.type) {
+      params.push(filters.type);
+      whereClauses.push(`e.type = $${params.length}`);
+    }
+
+    if (filters.accountId) {
+      params.push(filters.accountId);
+      whereClauses.push(`e.account_id = $${params.length}`);
+    }
+
     if (filters.q) {
       params.push(`%${filters.q}%`);
-      whereClauses.push(`e.note ILIKE $${params.length}`);
+      whereClauses.push(`(e.note ILIKE $${params.length} OR e.tags ILIKE $${params.length})`);
     }
 
     const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
@@ -181,10 +226,12 @@ export class ExpenseRepository {
       `SELECT
          e.id, e.user_id, e.category_id, e.amount_minor, e.currency_code,
          TO_CHAR(e.expense_date, 'YYYY-MM-DD') AS expense_date,
-         e.note, e.created_at, e.updated_at,
-         c.id AS cat_id, c.name AS cat_name, c.icon_key AS cat_icon_key, c.color_key AS cat_color_key
+         e.note, e.type, e.account_id, e.tags, e.created_at, e.updated_at,
+         c.id AS cat_id, c.name AS cat_name, c.icon_key AS cat_icon_key, c.color_key AS cat_color_key,
+         a.id AS acc_id, a.name AS acc_name, a.type AS acc_type
        FROM expenses e
        LEFT JOIN categories c ON e.category_id = c.id
+       LEFT JOIN accounts a ON e.account_id = a.id
        ${whereSql}
        ORDER BY e.expense_date DESC, e.created_at DESC
        LIMIT $${queryParams.length - 1} OFFSET $${queryParams.length}`,
@@ -213,6 +260,9 @@ export class ExpenseRepository {
       currencyCode?: string;
       expenseDate?: string;
       note?: string | null;
+      type?: 'expense' | 'income' | 'adjustment';
+      accountId?: string | null;
+      tags?: string | null;
     }
   ): Promise<ExpenseDTO | null> {
     const db = getDatabase();
@@ -244,7 +294,22 @@ export class ExpenseRepository {
       setClauses.push(`note = $${params.length}`);
     }
 
-    const result = await db.query(
+    if (data.type !== undefined) {
+      params.push(data.type);
+      setClauses.push(`type = $${params.length}`);
+    }
+
+    if (data.accountId !== undefined) {
+      params.push(data.accountId);
+      setClauses.push(`account_id = $${params.length}`);
+    }
+
+    if (data.tags !== undefined) {
+      params.push(data.tags);
+      setClauses.push(`tags = $${params.length}`);
+    }
+
+    await db.query(
       `UPDATE expenses
        SET ${setClauses.join(', ')}
        WHERE id = $1 AND user_id = $2`,

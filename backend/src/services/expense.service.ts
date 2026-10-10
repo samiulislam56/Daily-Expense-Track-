@@ -25,6 +25,9 @@ export class ExpenseService {
       currencyCode: data.currencyCode,
       expenseDate: data.expenseDate,
       note: data.note,
+      type: data.type,
+      accountId: data.accountId,
+      tags: data.tags,
     });
   }
 
@@ -62,6 +65,9 @@ export class ExpenseService {
       currencyCode: data.currencyCode,
       expenseDate: data.expenseDate,
       note: data.note,
+      type: data.type,
+      accountId: data.accountId,
+      tags: data.tags,
     });
 
     if (!updated) {

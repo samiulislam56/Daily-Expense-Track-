@@ -19,6 +19,18 @@ export function formatCurrency(amountMinor: number, currencyCode: string = 'BDT'
 }
 
 /**
+ * Format integer minor units with BDT symbol (৳1,250.00)
+ */
+export function formatBDT(amountMinor: number): string {
+  const major = amountMinor / 100;
+  const formatted = major.toLocaleString('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+  return `৳${formatted}`;
+}
+
+/**
  * Convert user decimal input string (e.g., "125.50") into integer minor units (12550) safely
  */
 export function parseAmountToMinor(input: string | number): number {

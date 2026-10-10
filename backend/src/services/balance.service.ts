@@ -6,6 +6,7 @@ export interface BalanceSummaryDTO {
   currencyCode: string;
   referenceDate: string;
   totalExpensesMinor: number;
+  totalIncomeMinor: number;
   remainingBalanceMinor: number;
   isConfigured: boolean;
   updatedAt: string | null;
@@ -22,20 +23,22 @@ export class BalanceService {
         currencyCode: 'BDT',
         referenceDate: today,
         totalExpensesMinor: 0,
+        totalIncomeMinor: 0,
         remainingBalanceMinor: 0,
         isConfigured: false,
         updatedAt: null,
       };
     }
 
-    const expensesSince = await balanceRepository.getTotalExpensesSince(userId, balance.referenceDate);
-    const remaining = balance.amountMinor - expensesSince;
+    const cashflow = await balanceRepository.getCashflowSince(userId, balance.referenceDate);
+    const remaining = balance.amountMinor + cashflow.incomeMinor - cashflow.expensesMinor;
 
     return {
       availableBalanceMinor: balance.amountMinor,
       currencyCode: balance.currencyCode,
       referenceDate: balance.referenceDate,
-      totalExpensesMinor: expensesSince,
+      totalExpensesMinor: cashflow.expensesMinor,
+      totalIncomeMinor: cashflow.incomeMinor,
       remainingBalanceMinor: remaining,
       isConfigured: true,
       updatedAt: balance.updatedAt,
@@ -52,14 +55,15 @@ export class BalanceService {
       referenceDate,
     });
 
-    const expensesSince = await balanceRepository.getTotalExpensesSince(userId, updated.referenceDate);
-    const remaining = updated.amountMinor - expensesSince;
+    const cashflow = await balanceRepository.getCashflowSince(userId, updated.referenceDate);
+    const remaining = updated.amountMinor + cashflow.incomeMinor - cashflow.expensesMinor;
 
     return {
       availableBalanceMinor: updated.amountMinor,
       currencyCode: updated.currencyCode,
       referenceDate: updated.referenceDate,
-      totalExpensesMinor: expensesSince,
+      totalExpensesMinor: cashflow.expensesMinor,
+      totalIncomeMinor: cashflow.incomeMinor,
       remainingBalanceMinor: remaining,
       isConfigured: true,
       updatedAt: updated.updatedAt,

@@ -43,6 +43,9 @@ export const createExpenseSchema = z.object({
     .optional()
     .nullable()
     .transform((val) => (val === null || val === undefined ? undefined : val)),
+  type: z.enum(['expense', 'income', 'adjustment']).default('expense'),
+  accountId: uuidSchema.optional().nullable(),
+  tags: z.string().trim().max(255).optional().nullable(),
 });
 
 export const updateExpenseSchema = createExpenseSchema.partial();
@@ -57,6 +60,8 @@ export const expenseQuerySchema = z.object({
     .refine(isValidCalendarDate, { message: 'To date must be a valid YYYY-MM-DD' })
     .optional(),
   categoryId: uuidSchema.optional(),
+  type: z.enum(['expense', 'income', 'adjustment']).optional(),
+  accountId: uuidSchema.optional(),
   q: z.string().trim().max(100).optional(),
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(20),

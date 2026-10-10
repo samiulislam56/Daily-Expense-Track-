@@ -83,16 +83,29 @@ export class BalanceRepository {
     return updated;
   }
 
-  async getTotalExpensesSince(userId: string, referenceDate: string): Promise<number> {
+  async getCashflowSince(userId: string, referenceDate: string): Promise<{ expensesMinor: number; incomeMinor: number }> {
     const db = getDatabase();
-    const result = await db.query<{ total: string | number | null }>(
-      `SELECT COALESCE(SUM(amount_minor), 0) AS total
+    const result = await db.query<{
+      expenses: string | number | null;
+      income: string | number | null;
+    }>(
+      `SELECT
+         COALESCE(SUM(CASE WHEN type = 'expense' THEN amount_minor ELSE 0 END), 0) AS expenses,
+         COALESCE(SUM(CASE WHEN type = 'income' THEN amount_minor ELSE 0 END), 0) AS income
        FROM expenses
        WHERE user_id = $1 AND expense_date >= $2::DATE`,
       [userId, referenceDate]
     );
 
-    return parseInt(String(result.rows[0]?.total || 0), 10);
+    return {
+      expensesMinor: parseInt(String(result.rows[0]?.expenses || 0), 10),
+      incomeMinor: parseInt(String(result.rows[0]?.income || 0), 10),
+    };
+  }
+
+  async getTotalExpensesSince(userId: string, referenceDate: string): Promise<number> {
+    const cashflow = await this.getCashflowSince(userId, referenceDate);
+    return cashflow.expensesMinor;
   }
 }
 

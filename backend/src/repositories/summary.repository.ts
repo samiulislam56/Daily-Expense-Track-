@@ -2,15 +2,20 @@ import { getDatabase } from '../database/db.js';
 
 export interface DailySummaryResult {
   date: string;
-  totalMinor: number;
-  count: number;
+  totalMinor: number; // total expense
+  count: number; // expense count
   averageMinor: number;
+  incomeMinor: number;
+  incomeCount: number;
 }
 
 export interface MonthlySummaryResult {
   month: string;
-  totalMinor: number;
-  count: number;
+  totalMinor: number; // expense total
+  count: number; // expense count
+  incomeTotalMinor: number;
+  incomeCount: number;
+  netSavingsMinor: number;
 }
 
 export interface CategorySummaryItem {
@@ -26,17 +31,26 @@ export interface CategorySummaryItem {
 export class SummaryRepository {
   async getDailySummary(date: string, userId: string): Promise<DailySummaryResult> {
     const db = getDatabase();
-    const result = await db.query<{ total: string | number | null; count: string | number }>(
+    const result = await db.query<{
+      expense_total: string | number | null;
+      expense_count: string | number;
+      income_total: string | number | null;
+      income_count: string | number;
+    }>(
       `SELECT
-         COALESCE(SUM(amount_minor), 0) AS total,
-         COUNT(*) AS count
+         COALESCE(SUM(CASE WHEN type = 'expense' THEN amount_minor ELSE 0 END), 0) AS expense_total,
+         COUNT(CASE WHEN type = 'expense' THEN 1 ELSE NULL END) AS expense_count,
+         COALESCE(SUM(CASE WHEN type = 'income' THEN amount_minor ELSE 0 END), 0) AS income_total,
+         COUNT(CASE WHEN type = 'income' THEN 1 ELSE NULL END) AS income_count
        FROM expenses
        WHERE user_id = $1 AND expense_date = $2::DATE`,
       [userId, date]
     );
 
-    const totalMinor = parseInt(String(result.rows[0]?.total || 0), 10);
-    const count = parseInt(String(result.rows[0]?.count || 0), 10);
+    const totalMinor = parseInt(String(result.rows[0]?.expense_total || 0), 10);
+    const count = parseInt(String(result.rows[0]?.expense_count || 0), 10);
+    const incomeMinor = parseInt(String(result.rows[0]?.income_total || 0), 10);
+    const incomeCount = parseInt(String(result.rows[0]?.income_count || 0), 10);
     const averageMinor = count > 0 ? Math.round(totalMinor / count) : 0;
 
     return {
@@ -44,37 +58,50 @@ export class SummaryRepository {
       totalMinor,
       count,
       averageMinor,
+      incomeMinor,
+      incomeCount,
     };
   }
 
   async getMonthlySummary(month: string, userId: string): Promise<MonthlySummaryResult> {
     const db = getDatabase();
-    // month is in YYYY-MM format
     const [yearStr, monthStr] = month.split('-');
     const year = parseInt(yearStr, 10);
     const m = parseInt(monthStr, 10);
 
-    // Calculate start and end date of that month
     const startDate = `${year}-${String(m).padStart(2, '0')}-01`;
     const lastDay = new Date(Date.UTC(year, m, 0)).getUTCDate();
     const endDate = `${year}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
 
-    const result = await db.query<{ total: string | number | null; count: string | number }>(
+    const result = await db.query<{
+      expense_total: string | number | null;
+      expense_count: string | number;
+      income_total: string | number | null;
+      income_count: string | number;
+    }>(
       `SELECT
-         COALESCE(SUM(amount_minor), 0) AS total,
-         COUNT(*) AS count
+         COALESCE(SUM(CASE WHEN type = 'expense' THEN amount_minor ELSE 0 END), 0) AS expense_total,
+         COUNT(CASE WHEN type = 'expense' THEN 1 ELSE NULL END) AS expense_count,
+         COALESCE(SUM(CASE WHEN type = 'income' THEN amount_minor ELSE 0 END), 0) AS income_total,
+         COUNT(CASE WHEN type = 'income' THEN 1 ELSE NULL END) AS income_count
        FROM expenses
        WHERE user_id = $1 AND expense_date >= $2::DATE AND expense_date <= $3::DATE`,
       [userId, startDate, endDate]
     );
 
-    const totalMinor = parseInt(String(result.rows[0]?.total || 0), 10);
-    const count = parseInt(String(result.rows[0]?.count || 0), 10);
+    const totalMinor = parseInt(String(result.rows[0]?.expense_total || 0), 10);
+    const count = parseInt(String(result.rows[0]?.expense_count || 0), 10);
+    const incomeTotalMinor = parseInt(String(result.rows[0]?.income_total || 0), 10);
+    const incomeCount = parseInt(String(result.rows[0]?.income_count || 0), 10);
+    const netSavingsMinor = incomeTotalMinor - totalMinor;
 
     return {
       month,
       totalMinor,
       count,
+      incomeTotalMinor,
+      incomeCount,
+      netSavingsMinor,
     };
   }
 
@@ -84,29 +111,29 @@ export class SummaryRepository {
     to?: string
   ): Promise<CategorySummaryItem[]> {
     const db = getDatabase();
-    const whereClauses: string[] = ['e.user_id = $1'];
+    const expenseClauses: string[] = ["e.user_id = $1", "e.type = 'expense'"];
     const params: any[] = [userId];
 
     if (from) {
       params.push(from);
-      whereClauses.push(`e.expense_date >= $${params.length}::DATE`);
+      expenseClauses.push(`e.expense_date >= $${params.length}::DATE`);
     }
 
     if (to) {
       params.push(to);
-      whereClauses.push(`e.expense_date <= $${params.length}::DATE`);
+      expenseClauses.push(`e.expense_date <= $${params.length}::DATE`);
     }
 
-    const whereSql = `WHERE ${whereClauses.join(' AND ')}`;
+    const whereSql = `WHERE ${expenseClauses.join(' AND ')}`;
 
-    // Total spending for this period
+    // Total expense for period
     const totalRes = await db.query<{ grand_total: string | number | null }>(
       `SELECT COALESCE(SUM(amount_minor), 0) as grand_total FROM expenses e ${whereSql}`,
       params
     );
     const grandTotal = parseInt(String(totalRes.rows[0]?.grand_total || 0), 10);
 
-    // Category sums
+    // Category breakdown
     const result = await db.query<{
       category_id: string;
       category_name: string;
@@ -123,7 +150,8 @@ export class SummaryRepository {
          COALESCE(SUM(e.amount_minor), 0) AS total,
          COUNT(e.id) AS count
        FROM categories c
-       LEFT JOIN expenses e ON e.category_id = c.id AND ${whereClauses.join(' AND ')}
+       JOIN expenses e ON e.category_id = c.id
+       ${whereSql}
        GROUP BY c.id, c.name, c.icon_key, c.color_key
        HAVING COALESCE(SUM(e.amount_minor), 0) > 0
        ORDER BY total DESC`,

@@ -1,108 +1,83 @@
-# DailyFlow — Personal Daily Expense Management Software (PWA)
+# DailyFlow — Premium Personal Finance App & AI Copilot (PWA)
 
 [![Live Demo on GitHub Pages](https://img.shields.io/badge/Demo-Live%20on%20GitHub%20Pages-0D9488?style=for-the-badge&logo=github)](https://samiulislam56.github.io/Daily-Expense-Track-/)
 [![PWA Ready](https://img.shields.io/badge/PWA-Installable%20%7C%20Offline%20Ready-0D9488?style=for-the-badge&logo=pwa)](https://samiulislam56.github.io/Daily-Expense-Track-/)
 [![CI Pipeline](https://github.com/samiulislam56/Daily-Expense-Track-/actions/workflows/ci.yml/badge.svg)](https://github.com/samiulislam56/Daily-Expense-Track-/actions/workflows/ci.yml)
-[![GitHub Pages Deploy](https://github.com/samiulislam56/Daily-Expense-Track-/actions/workflows/deploy.yml/badge.svg)](https://github.com/samiulislam56/Daily-Expense-Track-/actions/workflows/deploy.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-teal.svg)](LICENSE)
 [![Frontend Stack](https://img.shields.io/badge/Frontend-React%2019%20%7C%20Vite%20%7C%20Tailwind-teal)](frontend)
 [![Backend Stack](https://img.shields.io/badge/Backend-Node.js%20%7C%20Express%20%7C%20TypeScript-emerald)](backend)
 [![Database](https://img.shields.io/badge/Database-PostgreSQL%20%7C%20PGlite-blue)](docs/DATABASE.md)
 
-> **Live Application**: [https://samiulislam56.github.io/Daily-Expense-Track-/](https://samiulislam56.github.io/Daily-Expense-Track-/)
+> **Live Application URL**: [https://samiulislam56.github.io/Daily-Expense-Track-/](https://samiulislam56.github.io/Daily-Expense-Track-/)
 
-**DailyFlow** is a modern, high-precision personal expense management progressive web application (PWA) designed to help individuals record everyday spending quickly, understand where money goes with interactive Daily, Monthly, Yearly, and Category graphs, review expenses by date, and perform calculations without leaving the app.
-
----
-
-## 1. Key Features
-
-- **Interactive Expense Graphs**:
-  - **Trend Analysis Graph**: Switch between **Daily** (14-day spending trajectory), **Monthly** (annual 12-month comparison), and **Yearly** views with interactive SVG bars, gradient fills, and tooltips showing exact amounts, counts, and percentages.
-  - **Category Distribution Graph**: Sleek SVG Donut/Ring graph with center hover statistics, category share percentages, and individual breakdown cards.
-- **Installable Progressive Web App (PWA)**:
-  - Installable on Android phones, iPhones/iPads, tablets, and desktop computers (Chrome, Edge, Safari, Brave).
-  - Standalone display mode with custom app icons, splash theme, and iOS launch metadata.
-  - Service worker precaching of application shell, fonts, and assets with automatic background update detection.
-  - **Zero Security Risk**: Private API endpoints (`/api/v1/*`) are strictly excluded from service worker caching (`NetworkOnly`).
-- **Offline Entry & Synchronization Strategy**:
-  - Deliberate offline mutation queue (`dailyflow_offline_queue`) with client UUID idempotency keys and duplicate prevention.
-  - Offline mutations are stored locally and automatically replayed to the database once connection resumes.
-  - Live connectivity indicator pill (`Online • Synced`, `Offline • X pending`, `Syncing...`).
-- **Mobile-First UI & Responsive Design**:
-  - Compact thumb-friendly bottom navigation bar on mobile devices (`< 768px`) with quick-action center Add button.
-  - Desktop magnification dock on larger screens with keyboard navigation (`Tab`/`Enter`).
-  - Full touch target compliance (minimum 44×44px hit areas) and safe-area support (`env(safe-area-inset-bottom)`).
-- **Four Redesigned Dashboard Summary Cards**:
-  1. **Total Available Balance**: Manually enter and update your available money in BDT with an inline modal editor.
-  2. **Remaining Balance**: Accurately computes remaining funds (`Available Balance − Expenses since Reference Date`). Dynamically turns red if overspent.
-  3. **Today's Average Expense**: Real-time average per transaction for the selected date (`Day Total ÷ Transaction Count`). Gracefully displays `৳0.00` and `0 transactions` when no expenses exist.
-  4. **Total Expense**: Live aggregated expense amount for the selected date.
-- **Pristine Financial Data Integrity**: Money stored exclusively as integer minor currency units (`amount_minor BIGINT`) to completely prevent floating-point rounding errors (1 BDT = 100 Paisa).
-- **In-App Calculator with Direct Transfer**: Full keyboard operability and a one-click button to transfer calculated results directly into the expense entry form.
-- **Theme Preference System**: System, light, and dark modes with persistent local storage.
+**DailyFlow** is a premium, mobile-first fintech personal finance platform equipped with an **AI Finance Copilot**, multi-account liquidity tracking (Cash, Bank, Mobile Wallets like bKash), category and monthly budgets with threshold alerts, milestone-based savings goals, recurring bills management, and visual spending analytics.
 
 ---
 
-## 2. PWA Installation Guide
+## 1. Core Architecture & Features
 
-DailyFlow is a production-ready Progressive Web App that runs standalone without an app store:
+### 🤖 1. AI Finance Copilot
+- **Grounded & Deterministic**: All answers are grounded strictly in the user's verified application records and database calculations. Zero hallucination.
+- **Conversational Intelligence**: Ask natural questions like:
+  - *"How much did I spend today?"*
+  - *"What are my biggest spending categories this month?"*
+  - *"How much budget remains?"*
+  - *"Compare my spending with last month"*
+  - *"Suggest a realistic savings plan for my goal"*
+- **Natural Language Draft Proposal Cards**: Type *"Spent 450 BDT on Food today"* or *"Received 25000 salary"* to generate a structured draft proposal card.
+- **Explicit Confirmation Step**: Transactions are never committed automatically by the AI. An explicit **"Confirm & Add Transaction"** review action is required before records are created.
+- **Zero-Failure Architecture**: Works out of the box with the built-in deterministic financial engine; seamlessly connects to Google Gemini Flash when `GEMINI_API_KEY` is present.
 
-### 📱 Android (Chrome / Edge / Samsung Internet)
-1. Open [https://samiulislam56.github.io/Daily-Expense-Track-/](https://samiulislam56.github.io/Daily-Expense-Track-/) in Chrome or Edge.
-2. Tap the **"Install App"** button in the header or tap browser menu (⋮) → **"Install app"** / **"Add to Home screen"**.
-3. Confirm installation. The DailyFlow app icon will appear on your Home Screen and app drawer with a full native experience.
+### 💳 2. Financial Accounting Correctness
+- **Consistent Accounting Model**:
+  $$\text{Remaining Balance} = \text{Opening Balance} + \text{Income}_{\ge t} - \text{Expenses}_{\ge t}$$
+- **Multi-Account Support**: Manage multiple accounts: Cash in Hand, Bank Accounts, and Mobile Financial Services (bKash, Nagad).
+- **Exact Numeric Representation**: Monetary values are stored as integer minor units (`amount_minor BIGINT`) to avoid floating-point inaccuracies (1 BDT = 100 Paisa).
+- **Reference Date Balance Setup**: Prevents historical transactions from being double-subtracted.
 
-### 🍏 iPhone & iPad (Safari)
-1. Open [https://samiulislam56.github.io/Daily-Expense-Track-/](https://samiulislam56.github.io/Daily-Expense-Track-/) in Safari.
-2. Tap the **Share** icon (square with arrow pointing up) at the bottom toolbar.
-3. Scroll down and tap **"Add to Home Screen"**.
-4. Tap **"Add"** in the top-right corner. The app will launch in full standalone mode with no browser URL bar.
+### 🎯 3. Monthly & Category Budgets
+- Set monthly overall spending limits and category-specific budgets.
+- Live progress bars indicating spent vs allocated amounts.
+- Early warning threshold alerts (e.g. at 80% of budget) and visual exceeded warnings.
+- **Clear Financial Education**: Clearly delineates between *Available Balance* (liquid cash) and *Remaining Budget* (monthly spending ceiling).
 
-### 💻 Desktop (Chrome / Edge / Brave / macOS / Windows / Linux)
-1. Open [https://samiulislam56.github.io/Daily-Expense-Track-/](https://samiulislam56.github.io/Daily-Expense-Track-/).
-2. Click the **"Install App"** button in the header or the install icon in your browser's address bar.
-3. DailyFlow will open in its own clean desktop window with native OS dock/taskbar integration.
+### 🏆 4. Milestone Savings Goals
+- Create custom goals (e.g. Emergency Fund, New Laptop, Vacation) with target amounts and target dates.
+- Realistic periodic contribution projections: $(\text{Target} - \text{Current}) \div \text{Months Remaining}$.
+- Quick **"Add Contribution"** modal.
+
+### 🔄 5. Recurring Bills & Subscriptions
+- Weekly and monthly recurring payment templates (Broadband, Rent, Subscriptions).
+- One-click **"Record Payment Now"** action logs a real transaction and automatically advances the next due date forward by one cycle.
+
+### 📅 6. Spending Calendar & Analytics
+- **Interactive Calendar Grid**: Visual heat map showing daily expenditure totals. Tap any day to inspect transactions for that date.
+- **Expense Trend Graph**: Switch between Daily (14-day), Monthly (12-month), and Yearly views.
+- **Category Donut Graph**: Interactive ring breakdown with category percentages.
+- **CSV Data Export**: Download transaction history for spreadsheet analysis.
+
+### 📱 7. Mobile-First Progressive Web App (PWA)
+- Installable on Android, iOS, tablets, and desktop computers.
+- Full offline support with optimistic UI and background mutation replay.
+- **Security**: Authenticated backend routes (`/api/v1/*`) use `NetworkOnly` and are never cached in public service worker stores.
 
 ---
 
-## 3. Technology Stack & High-Level Architecture
-
-```
-┌────────────────────────────────────────────────────────┐
-│                       Frontend                         │
-│  React 19 + TypeScript + Vite + VitePWA + Tailwind     │
-│  TanStack Query + Framer Motion + Lucide React         │
-│  Service Worker (Workbox) + Offline Mutation Queue     │
-└───────────────────────────┬────────────────────────────┘
-                            │ HTTPS REST API (/api/v1)
-┌───────────────────────────▼────────────────────────────┐
-│                       Backend                          │
-│  Node.js + Express + TypeScript                        │
-│  Zod Schema Validation + Structured Logging            │
-└───────────────────────────┬────────────────────────────┘
-                            │ SQL Queries / Migrations
-┌───────────────────────────▼────────────────────────────┐
-│                       Database                         │
-│  PostgreSQL (Production) / PGlite WASM (Local Zero-0)  │
-│  Strict Foreign Keys, Indexes & DATE Constraints       │
-└────────────────────────────────────────────────────────┘
-```
+## 2. Technology Stack
 
 - **Frontend**: React 19, TypeScript, Vite, `vite-plugin-pwa`, Workbox, Tailwind CSS, TanStack Query, Framer Motion, Lucide React.
-- **Backend**: Node.js, Express, TypeScript, Zod, pg, Supertest, Vitest.
-- **Database**: PostgreSQL (with embedded `@electric-sql/pglite` WASM fallback for instant 0-configuration local setup).
+- **Backend**: Node.js v24, Express, TypeScript, Zod, pg, `@electric-sql/pglite` WASM, Vitest, Supertest.
+- **Database**: PostgreSQL (Production) with automatic embedded PGlite WASM for instant local testing.
 
 ---
 
-## 4. Getting Started
+## 3. Getting Started
 
 ### Prerequisites
-- **Node.js**: v20+ or v24 LTS
-- **npm**: v10+
-- **PostgreSQL** *(optional for local testing; DailyFlow automatically uses embedded PostgreSQL if no `DATABASE_URL` is set)*
+- Node.js: v20+ or v24 LTS
+- npm: v10+
 
-### Setup Commands
+### Setup Instructions
 
 1. **Clone the repository**:
    ```bash
@@ -115,45 +90,64 @@ DailyFlow is a production-ready Progressive Web App that runs standalone without
    cd backend
    npm install
    cp .env.example .env
-   # Run migrations and seed default categories & demo data
+   # Run migrations and seed sample demo data
    npm run seed
-   # Start backend API server (runs on http://localhost:4000)
+   # Start backend API (http://localhost:4000)
    npm run dev
    ```
 
-3. **Frontend Setup** *(in a separate terminal)*:
+3. **Frontend Setup** *(in a second terminal)*:
    ```bash
    cd frontend
    npm install
-   # Start Vite dev server (runs on http://localhost:5173 with proxy to backend)
+   cp .env.example .env
+   # Start Vite dev server (http://localhost:5173 with proxy to backend)
    npm run dev
+   ```
+
+4. **Environment Variables**:
+   In `backend/.env`:
+   ```env
+   PORT=4000
+   NODE_ENV=development
+   CORS_ORIGIN=http://localhost:5173
+   DATABASE_URL=memory://dailyflow
+   LOG_LEVEL=info
+
+   # Optional: Google Gemini API Key for Copilot enhancement
+   GEMINI_API_KEY=your_gemini_api_key_here
    ```
 
 ---
 
-## 5. Testing & CI Pipeline
+## 4. Testing & Verification
 
 Run all test suites across the project:
 
 ```bash
-# Run backend Vitest integration suite (22 tests passing)
+# Backend Vitest integration suite (29 tests passing across all suites)
 npm --prefix backend test
 
-# Run frontend Vitest unit suite (6 tests passing)
+# Frontend Vitest unit suite (13 tests passing)
 npm --prefix frontend test
+
+# Production build verification
+npm --prefix backend run build
+npm --prefix frontend run build
 ```
 
 ---
 
-## 6. Deployment to GitHub Pages
+## 5. Deployment
 
-GitHub Pages automatically builds and deploys the frontend via [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) on push to `main`.
+### GitHub Pages (Dual Mode)
+GitHub Pages automatically deploys the interactive frontend using [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml). When accessed via GitHub Pages (`github.io`), the app seamlessly activates its full-featured `mockStorage` adapter, providing 100% interactive support for Multi-Accounts, Budgets, Savings Goals, Recurring Payments, and the AI Copilot.
 
 Live Deployment:  
 👉 **[https://samiulislam56.github.io/Daily-Expense-Track-/](https://samiulislam56.github.io/Daily-Expense-Track-/)**
 
 ---
 
-## 7. License
+## 6. License
 
 This project is licensed under the terms of the [MIT License](LICENSE).

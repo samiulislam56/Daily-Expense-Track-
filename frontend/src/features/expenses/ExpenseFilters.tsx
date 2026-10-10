@@ -1,6 +1,6 @@
 import React from 'react';
-import { Search, Filter, Download, RotateCcw, X } from 'lucide-react';
-import { Category, Expense, ExpenseFilters as FilterType } from '../../types/index.js';
+import { Search, Filter, Download, RotateCcw, X, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { Category, Expense, ExpenseFilters as FilterType, TransactionType } from '../../types/index.js';
 import { exportExpensesToCSV } from '../../lib/utils.js';
 
 interface ExpenseFiltersProps {
@@ -17,7 +17,7 @@ export const ExpenseFiltersBar: React.FC<ExpenseFiltersProps> = ({
   currentExpenses,
 }) => {
   const hasActiveFilters = Boolean(
-    filters.q || filters.categoryId || filters.from || filters.to
+    filters.q || filters.categoryId || filters.from || filters.to || filters.type
   );
 
   const handleReset = () => {
@@ -32,24 +32,24 @@ export const ExpenseFiltersBar: React.FC<ExpenseFiltersProps> = ({
   };
 
   return (
-    <div className="p-4 rounded-2xl bg-surface border border-border shadow-card mb-6 transition-all">
+    <div className="p-4 rounded-2xl bg-[var(--surface)] border border-[var(--border)] shadow-sm mb-6 transition-all">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-        {/* Search by note */}
+        {/* Search by note/tags */}
         <div className="relative flex-1">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-muted" />
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-muted)]" />
           <input
             type="text"
-            placeholder="Search note or description..."
+            placeholder="Search note, tag, or description..."
             value={filters.q || ''}
             onChange={(e) =>
               onFilterChange({ ...filters, q: e.target.value || undefined, page: 1 })
             }
-            className="w-full pl-10 pr-9 py-2 rounded-xl border border-border bg-surface-elevated/40 text-sm text-ink placeholder:text-ink-muted focus:outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20"
+            className="w-full pl-10 pr-9 py-2 rounded-xl border border-[var(--border)] bg-[var(--surface-elevated)] text-xs text-[var(--text-ink)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
           />
           {filters.q && (
             <button
               onClick={() => onFilterChange({ ...filters, q: undefined, page: 1 })}
-              className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-ink-muted hover:text-ink"
+              className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-[var(--text-muted)] hover:text-[var(--text-ink)]"
               aria-label="Clear search"
             >
               <X className="w-3.5 h-3.5" />
@@ -57,8 +57,28 @@ export const ExpenseFiltersBar: React.FC<ExpenseFiltersProps> = ({
           )}
         </div>
 
+        {/* Type Filter */}
+        <div className="w-full md:w-36">
+          <select
+            value={filters.type || ''}
+            onChange={(e) =>
+              onFilterChange({
+                ...filters,
+                type: (e.target.value as TransactionType) || undefined,
+                page: 1,
+              })
+            }
+            className="w-full px-3 py-2 rounded-xl border border-[var(--border)] bg-[var(--surface-elevated)] text-xs text-[var(--text-ink)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] cursor-pointer"
+            aria-label="Filter by transaction type"
+          >
+            <option value="">All Types</option>
+            <option value="expense">Expenses Out</option>
+            <option value="income">Income In</option>
+          </select>
+        </div>
+
         {/* Category filter */}
-        <div className="w-full md:w-52">
+        <div className="w-full md:w-48">
           <select
             value={filters.categoryId || ''}
             onChange={(e) =>
@@ -68,7 +88,7 @@ export const ExpenseFiltersBar: React.FC<ExpenseFiltersProps> = ({
                 page: 1,
               })
             }
-            className="w-full px-3 py-2 rounded-xl border border-border bg-surface-elevated/40 text-sm text-ink focus:outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 cursor-pointer"
+            className="w-full px-3 py-2 rounded-xl border border-[var(--border)] bg-[var(--surface-elevated)] text-xs text-[var(--text-ink)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] cursor-pointer"
             aria-label="Filter by category"
           >
             <option value="">All Categories</option>
@@ -85,7 +105,7 @@ export const ExpenseFiltersBar: React.FC<ExpenseFiltersProps> = ({
           {hasActiveFilters && (
             <button
               onClick={handleReset}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-ink-muted hover:text-ink hover:bg-surface-elevated transition-colors"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-[var(--text-muted)] hover:text-[var(--text-ink)] hover:bg-[var(--surface-elevated)] transition-colors"
               title="Reset all filters"
             >
               <RotateCcw className="w-3.5 h-3.5" />
@@ -95,10 +115,10 @@ export const ExpenseFiltersBar: React.FC<ExpenseFiltersProps> = ({
 
           <button
             onClick={handleExport}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-border bg-surface hover:bg-surface-elevated text-xs font-semibold text-ink shadow-subtle transition-colors"
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--surface-elevated)] text-xs font-semibold text-[var(--text-ink)] shadow-sm transition-colors"
             title="Download CSV"
           >
-            <Download className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
+            <Download className="w-3.5 h-3.5 text-[var(--accent)]" />
             <span>Export CSV</span>
           </button>
         </div>

@@ -38,3 +38,5 @@ coverage/
 *.sqlite
 *.sqlite3
 .pgdata/
+
+*.tsbuildinfo

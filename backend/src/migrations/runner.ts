@@ -8,7 +8,11 @@ const __dirname = path.dirname(__filename);
 
 export async function runMigrations(): Promise<void> {
   const db = getDatabase();
-  const migrationFiles = ['001_init.sql', '002_user_balances.sql'];
+  const migrationFiles = [
+    '001_init.sql',
+    '002_user_balances.sql',
+    '003_fintech_platform_upgrade.sql',
+  ];
 
   for (const file of migrationFiles) {
     let migrationPath = path.join(__dirname, file);
