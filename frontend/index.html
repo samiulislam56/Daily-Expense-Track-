@@ -2,18 +2,33 @@
 <html lang="en" class="scroll-smooth">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230D9488' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6'/></svg>" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="description" content="DailyFlow: Calm, precise, approachable personal expense management. Track daily spending, understand where money goes, and calculate without leaving your workflow." />
     <meta name="theme-color" content="#0D9488" />
+
+    <!-- PWA Primary Identity & Icons -->
     <title>DailyFlow — Personal Expense Tracker</title>
+    <link rel="icon" type="image/svg+xml" href="./icon.svg" />
+    <link rel="alternate icon" type="image/png" href="./pwa-192x192.png" />
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
+
+    <!-- iOS / Apple Web App Capabilities -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="DailyFlow" />
+    <meta name="mobile-web-app-capable" content="yes" />
+
+    <!-- Microsoft Tiles & Colors -->
+    <meta name="msapplication-TileColor" content="#0D9488" />
+    <meta name="msapplication-tap-highlight" content="no" />
+
     <!-- Fonts: Plus Jakarta Sans & JetBrains Mono -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   </head>
-  <body class="bg-bg text-ink antialiased selection:bg-teal-500/20 selection:text-teal-900 dark:selection:text-teal-200">
-    <div id="root"></div>
+  <body class="bg-bg text-ink antialiased selection:bg-teal-500/20 selection:text-teal-900 dark:selection:text-teal-200 overflow-x-hidden min-h-screen">
+    <div id="root" class="min-h-screen flex flex-col"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
