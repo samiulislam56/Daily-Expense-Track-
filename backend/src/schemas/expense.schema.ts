@@ -13,6 +13,9 @@ export const isValidCalendarDate = (dateStr: string): boolean => {
   );
 };
 
+const uuidPattern = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+export const uuidSchema = z.string().regex(uuidPattern, 'Must be a valid UUID format');
+
 export const createExpenseSchema = z.object({
   amountMinor: z
     .number({
@@ -27,9 +30,7 @@ export const createExpenseSchema = z.object({
     .trim()
     .regex(/^[A-Z]{3}$/, 'Currency code must be a 3-letter ISO code')
     .default('BDT'),
-  categoryId: z
-    .string({ required_error: 'Category is required' })
-    .uuid('Category ID must be a valid UUID'),
+  categoryId: uuidSchema,
   expenseDate: z
     .string({ required_error: 'Expense date is required' })
     .refine(isValidCalendarDate, {
@@ -55,7 +56,7 @@ export const expenseQuerySchema = z.object({
     .string()
     .refine(isValidCalendarDate, { message: 'To date must be a valid YYYY-MM-DD' })
     .optional(),
-  categoryId: z.string().uuid().optional(),
+  categoryId: uuidSchema.optional(),
   q: z.string().trim().max(100).optional(),
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(20),

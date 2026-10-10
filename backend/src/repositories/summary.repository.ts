@@ -4,6 +4,7 @@ export interface DailySummaryResult {
   date: string;
   totalMinor: number;
   count: number;
+  averageMinor: number;
 }
 
 export interface MonthlySummaryResult {
@@ -36,11 +37,13 @@ export class SummaryRepository {
 
     const totalMinor = parseInt(String(result.rows[0]?.total || 0), 10);
     const count = parseInt(String(result.rows[0]?.count || 0), 10);
+    const averageMinor = count > 0 ? Math.round(totalMinor / count) : 0;
 
     return {
       date,
       totalMinor,
       count,
+      averageMinor,
     };
   }
 

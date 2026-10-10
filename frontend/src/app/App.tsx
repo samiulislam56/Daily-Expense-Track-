@@ -9,6 +9,7 @@ import { ExpenseList } from '../features/expenses/ExpenseList.js';
 import { ExpenseFiltersBar } from '../features/expenses/ExpenseFilters.js';
 import { ExpenseFormModal } from '../features/expenses/ExpenseFormModal.js';
 import { DeleteConfirmModal } from '../features/expenses/DeleteConfirmModal.js';
+import { EditBalanceModal } from '../features/balance/EditBalanceModal.js';
 import { InAppCalculator } from '../features/calculator/InAppCalculator.js';
 import { SettingsView } from '../features/settings/SettingsView.js';
 
@@ -19,6 +20,7 @@ import {
   useDailySummary,
   useMonthlySummary,
   useCategorySummary,
+  useBalance,
   useExpenseMutations,
 } from '../hooks/useExpenseQueries.js';
 import { ActiveTab, Expense, ExpenseFilters } from '../types/index.js';
@@ -38,8 +40,10 @@ export const App: React.FC = () => {
 
   // Modals state
   const [isAddModalOpen, setIsAddModalOpen] = useState<boolean>(false);
+  const [isEditBalanceOpen, setIsEditBalanceOpen] = useState<boolean>(false);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [expenseToDelete, setExpenseToDelete] = useState<Expense | null>(null);
+  const [deleteErrorMessage, setDeleteErrorMessage] = useState<string | null>(null);
   const [prefilledAmount, setPrefilledAmount] = useState<string | null>(null);
 
   // Toasts state
@@ -59,6 +63,7 @@ export const App: React.FC = () => {
 
   // Queries
   const { data: categories = [] } = useCategories();
+  const { data: balanceData } = useBalance();
 
   // Overview expenses filter vs History filters
   const effectiveFilters = useMemo(() => {
@@ -77,13 +82,18 @@ export const App: React.FC = () => {
   const meta = expensesResponse?.meta || { page: 1, pageSize: 20, totalCount: 0, totalPages: 1 };
 
   // Summaries
+  const todayDate = useMemo(() => getTodayDateString(), []);
   const currentMonth = useMemo(() => selectedDate.substring(0, 7) || getCurrentMonthString(), [selectedDate]);
-  const { data: dailySummary } = useDailySummary(selectedDate);
+
+  // Today's summary for Card 3 (Today's Average Expense)
+  const { data: todaySummary } = useDailySummary(todayDate);
+  // Selected day's summary for Card 4 (Total Expense / Spending)
+  const { data: selectedDaySummary } = useDailySummary(selectedDate);
   const { data: monthlySummary } = useMonthlySummary(currentMonth);
   const { data: categorySummary = [], isLoading: isLoadingCategorySummary } = useCategorySummary();
 
   // Mutations
-  const { createMutation, updateMutation, deleteMutation } = useExpenseMutations();
+  const { createMutation, updateMutation, deleteMutation, updateBalanceMutation } = useExpenseMutations();
 
   // Handlers
   const handleOpenAdd = (initialAmt?: string) => {
@@ -120,15 +130,32 @@ export const App: React.FC = () => {
     }
   };
 
+  const handleOpenDelete = (expense: Expense) => {
+    setExpenseToDelete(expense);
+    setDeleteErrorMessage(null);
+  };
+
   const handleConfirmDelete = async () => {
     if (!expenseToDelete) return;
+    setDeleteErrorMessage(null);
     try {
       await deleteMutation.mutateAsync(expenseToDelete.id);
-      addToast('success', 'Expense was successfully removed.', 'Deleted');
+      addToast('success', 'Expense was successfully removed from database.', 'Deleted');
       setExpenseToDelete(null);
-    } catch {
-      addToast('error', 'Failed to delete expense. Please try again.', 'Error');
+    } catch (err: any) {
+      const msg = err?.message || 'Failed to delete expense. Please try again.';
+      setDeleteErrorMessage(msg);
+      addToast('error', msg, 'Delete Failed');
     }
+  };
+
+  const handleSaveBalance = async (payload: {
+    amountMinor: number;
+    currencyCode: string;
+    referenceDate: string;
+  }) => {
+    await updateBalanceMutation.mutateAsync(payload);
+    addToast('success', 'Total available balance saved successfully.', 'Balance Saved');
   };
 
   const handleTransferFromCalc = (amountDecimal: string) => {
@@ -155,13 +182,19 @@ export const App: React.FC = () => {
         {/* TAB: OVERVIEW */}
         {activeTab === 'overview' && (
           <div className="space-y-6">
-            {/* Top Metrics Strip */}
+            {/* Redesigned Four Dashboard Summary Cards (Requirement 1) */}
             <DashboardMetrics
+              availableBalanceMinor={balanceData?.availableBalanceMinor ?? 0}
+              isBalanceConfigured={balanceData?.isConfigured ?? false}
+              balanceReferenceDate={balanceData?.referenceDate}
+              onEditBalance={() => setIsEditBalanceOpen(true)}
+              remainingBalanceMinor={balanceData?.remainingBalanceMinor ?? 0}
+              totalExpensesAgainstBalanceMinor={balanceData?.totalExpensesMinor ?? 0}
+              todayAverageMinor={todaySummary?.averageMinor ?? 0}
+              todayCount={todaySummary?.count ?? 0}
               selectedDate={selectedDate}
-              dailyTotalMinor={dailySummary?.totalMinor || 0}
-              dailyCount={dailySummary?.count || 0}
-              monthlyTotalMinor={monthlySummary?.totalMinor || 0}
-              monthlyCount={monthlySummary?.count || 0}
+              selectedDayTotalMinor={selectedDaySummary?.totalMinor ?? 0}
+              selectedDayCount={selectedDaySummary?.count ?? 0}
               currencyCode={currency}
             />
 
@@ -189,7 +222,7 @@ export const App: React.FC = () => {
                   expenses={expenses}
                   isLoading={isLoadingExpenses}
                   onEdit={handleEditExpense}
-                  onDelete={setExpenseToDelete}
+                  onDelete={handleOpenDelete}
                   onOpenAddModal={() => handleOpenAdd()}
                   currentPage={meta.page}
                   totalPages={meta.totalPages}
@@ -231,7 +264,7 @@ export const App: React.FC = () => {
               expenses={expenses}
               isLoading={isLoadingExpenses}
               onEdit={handleEditExpense}
-              onDelete={setExpenseToDelete}
+              onDelete={handleOpenDelete}
               onOpenAddModal={() => handleOpenAdd()}
               currentPage={meta.page}
               totalPages={meta.totalPages}
@@ -251,11 +284,17 @@ export const App: React.FC = () => {
             </div>
 
             <DashboardMetrics
+              availableBalanceMinor={balanceData?.availableBalanceMinor ?? 0}
+              isBalanceConfigured={balanceData?.isConfigured ?? false}
+              balanceReferenceDate={balanceData?.referenceDate}
+              onEditBalance={() => setIsEditBalanceOpen(true)}
+              remainingBalanceMinor={balanceData?.remainingBalanceMinor ?? 0}
+              totalExpensesAgainstBalanceMinor={balanceData?.totalExpensesMinor ?? 0}
+              todayAverageMinor={todaySummary?.averageMinor ?? 0}
+              todayCount={todaySummary?.count ?? 0}
               selectedDate={selectedDate}
-              dailyTotalMinor={dailySummary?.totalMinor || 0}
-              dailyCount={dailySummary?.count || 0}
-              monthlyTotalMinor={monthlySummary?.totalMinor || 0}
-              monthlyCount={monthlySummary?.count || 0}
+              selectedDayTotalMinor={selectedDaySummary?.totalMinor ?? 0}
+              selectedDayCount={selectedDaySummary?.count ?? 0}
               currencyCode={currency}
             />
 
@@ -282,12 +321,14 @@ export const App: React.FC = () => {
 
         {/* TAB: SETTINGS */}
         {activeTab === 'settings' && (
-          <SettingsView
-            theme={theme}
-            onThemeChange={setTheme}
-            currency={currency}
-            onCurrencyChange={setCurrency}
-          />
+          <div className="space-y-6">
+            <SettingsView
+              theme={theme}
+              onThemeChange={setTheme}
+              currency={currency}
+              onCurrencyChange={setCurrency}
+            />
+          </div>
         )}
       </main>
 
@@ -305,13 +346,27 @@ export const App: React.FC = () => {
         onSave={handleSaveExpense}
       />
 
-      {/* Delete Confirmation Modal */}
+      {/* Edit Total Available Balance Modal (Requirement 1 & 4) */}
+      <EditBalanceModal
+        isOpen={isEditBalanceOpen}
+        onClose={() => setIsEditBalanceOpen(false)}
+        currentBalanceMinor={balanceData?.availableBalanceMinor ?? 0}
+        currentReferenceDate={balanceData?.referenceDate}
+        currencyCode={currency}
+        onSave={handleSaveBalance}
+      />
+
+      {/* Delete Confirmation Modal (Requirement 2) */}
       <DeleteConfirmModal
         isOpen={Boolean(expenseToDelete)}
         expense={expenseToDelete}
         isDeleting={deleteMutation.isPending}
+        errorMessage={deleteErrorMessage}
         onConfirm={handleConfirmDelete}
-        onCancel={() => setExpenseToDelete(null)}
+        onCancel={() => {
+          setExpenseToDelete(null);
+          setDeleteErrorMessage(null);
+        }}
       />
 
       {/* Toast Feedback Region */}

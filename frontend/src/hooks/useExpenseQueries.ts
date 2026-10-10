@@ -40,12 +40,20 @@ export function useCategorySummary(from?: string, to?: string) {
   });
 }
 
+export function useBalance() {
+  return useQuery({
+    queryKey: ['balance'],
+    queryFn: () => api.getBalance(),
+  });
+}
+
 export function useExpenseMutations() {
   const queryClient = useQueryClient();
 
   const invalidateAll = () => {
     queryClient.invalidateQueries({ queryKey: ['expenses'] });
     queryClient.invalidateQueries({ queryKey: ['summary'] });
+    queryClient.invalidateQueries({ queryKey: ['balance'] });
   };
 
   const createMutation = useMutation({
@@ -69,9 +77,17 @@ export function useExpenseMutations() {
     },
   });
 
+  const updateBalanceMutation = useMutation({
+    mutationFn: api.updateBalance,
+    onSuccess: () => {
+      invalidateAll();
+    },
+  });
+
   return {
     createMutation,
     updateMutation,
     deleteMutation,
+    updateBalanceMutation,
   };
 }

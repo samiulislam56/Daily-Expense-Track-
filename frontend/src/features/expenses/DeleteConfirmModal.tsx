@@ -7,6 +7,7 @@ interface DeleteConfirmModalProps {
   isOpen: boolean;
   expense: Expense | null;
   isDeleting: boolean;
+  errorMessage?: string | null;
   onConfirm: () => void;
   onCancel: () => void;
 }
@@ -15,6 +16,7 @@ export const DeleteConfirmModal: React.FC<DeleteConfirmModalProps> = ({
   isOpen,
   expense,
   isDeleting,
+  errorMessage,
   onConfirm,
   onCancel,
 }) => {
@@ -67,6 +69,14 @@ export const DeleteConfirmModal: React.FC<DeleteConfirmModalProps> = ({
           </div>
         </div>
 
+        {/* Error message alert */}
+        {errorMessage && (
+          <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 text-xs mb-4">
+            <span className="font-semibold block mb-0.5">Deletion failed:</span>
+            <span>{errorMessage}</span>
+          </div>
+        )}
+
         {/* Actions (Cancel is default focused action for safety) */}
         <div className="flex items-center justify-end gap-3">
           <button
@@ -84,7 +94,7 @@ export const DeleteConfirmModal: React.FC<DeleteConfirmModalProps> = ({
             className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-medium text-sm transition-colors shadow-sm disabled:opacity-50"
           >
             <Trash2 className="w-4 h-4" />
-            <span>{isDeleting ? 'Deleting...' : 'Delete Permanently'}</span>
+            <span>{isDeleting ? 'Deleting...' : errorMessage ? 'Retry Deletion' : 'Delete Permanently'}</span>
           </button>
         </div>
       </div>

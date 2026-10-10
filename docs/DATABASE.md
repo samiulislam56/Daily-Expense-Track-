@@ -50,6 +50,15 @@ erDiagram
         TIMESTAMPTZ created_at
         TIMESTAMPTZ updated_at
     }
+
+    user_balances {
+        UUID user_id PK, FK
+        BIGINT amount_minor
+        VARCHAR currency_code
+        DATE reference_date
+        TIMESTAMPTZ created_at
+        TIMESTAMPTZ updated_at
+    }
 ```
 
 ---

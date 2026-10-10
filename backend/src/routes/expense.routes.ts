@@ -16,7 +16,7 @@ import { ValidationError } from '../middleware/error.middleware.js';
 
 const router = Router();
 
-const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 
 function validateIdParam(req: Request, res: Response, next: NextFunction): void {
   if (!uuidRegex.test(req.params.id)) {

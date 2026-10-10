@@ -256,13 +256,11 @@ export class ExpenseRepository {
 
   async delete(id: string, userId: string): Promise<boolean> {
     const db = getDatabase();
-    const result = await db.query(
-      `DELETE FROM expenses WHERE id = $1 AND user_id = $2`,
+    const result = await db.query<{ id: string }>(
+      `DELETE FROM expenses WHERE id = $1 AND user_id = $2 RETURNING id`,
       [id, userId]
     );
-    // Return true if row was deleted
-    const countCheck = await this.findById(id, userId);
-    return countCheck === null;
+    return result.rows.length > 0;
   }
 }
 

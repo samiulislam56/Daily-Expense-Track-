@@ -170,7 +170,54 @@
   "data": {
     "date": "2026-10-10",
     "totalMinor": 12500,
-    "count": 1
+    "count": 1,
+    "averageMinor": 12500
+  }
+}
+```
+
+---
+
+### Balance Management
+
+#### 1. Get Balance Summary
+- **Endpoint**: `GET /api/v1/balance`
+- **Success (200 OK)**:
+```json
+{
+  "data": {
+    "availableBalanceMinor": 500000,
+    "currencyCode": "BDT",
+    "referenceDate": "2026-10-10",
+    "totalExpensesMinor": 50000,
+    "remainingBalanceMinor": 450000,
+    "isConfigured": true,
+    "updatedAt": "2026-10-10T12:00:00.000Z"
+  }
+}
+```
+
+#### 2. Set / Update Available Balance
+- **Endpoint**: `PUT /api/v1/balance` (or `POST /api/v1/balance`)
+- **Request Body**:
+```json
+{
+  "amountMinor": 500000,
+  "currencyCode": "BDT",
+  "referenceDate": "2026-10-10"
+}
+```
+- **Success (200 OK)**:
+```json
+{
+  "data": {
+    "availableBalanceMinor": 500000,
+    "currencyCode": "BDT",
+    "referenceDate": "2026-10-10",
+    "totalExpensesMinor": 50000,
+    "remainingBalanceMinor": 450000,
+    "isConfigured": true,
+    "updatedAt": "2026-10-10T12:00:00.000Z"
   }
 }
 ```

@@ -6,6 +6,7 @@ import {
   DailySummary,
   MonthlySummary,
   CategorySummaryItem,
+  UserBalance,
 } from '../types/index.js';
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
@@ -134,6 +135,24 @@ export const api = {
     if (to) params.append('to', to);
     const queryString = params.toString() ? `?${params.toString()}` : '';
     const res = await request<{ data: CategorySummaryItem[] }>(`/api/v1/summary/categories${queryString}`);
+    return res.data;
+  },
+
+  // Balance Management
+  async getBalance(): Promise<UserBalance> {
+    const res = await request<{ data: UserBalance }>('/api/v1/balance');
+    return res.data;
+  },
+
+  async updateBalance(payload: {
+    amountMinor: number;
+    currencyCode?: string;
+    referenceDate?: string;
+  }): Promise<UserBalance> {
+    const res = await request<{ data: UserBalance }>('/api/v1/balance', {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
     return res.data;
   },
 };

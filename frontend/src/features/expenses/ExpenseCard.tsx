@@ -51,18 +51,28 @@ export const ExpenseCard: React.FC<ExpenseCardProps> = ({
         </div>
 
         {/* Action icons */}
-        <div className="flex items-center gap-1 opacity-80 sm:opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+        <div className="flex items-center gap-1 opacity-100 sm:opacity-80 sm:group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
           <button
-            onClick={() => onEdit(expense)}
-            className="p-1.5 rounded-lg text-ink-muted hover:text-teal-600 hover:bg-teal-500/10 transition-colors"
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onEdit(expense);
+            }}
+            className="p-2 rounded-lg text-ink-muted hover:text-teal-600 hover:bg-teal-500/10 active:scale-95 transition-all"
             title="Edit expense"
             aria-label="Edit expense"
           >
             <Edit2 className="w-4 h-4" />
           </button>
           <button
-            onClick={() => onDelete(expense)}
-            className="p-1.5 rounded-lg text-ink-muted hover:text-rose-600 hover:bg-rose-500/10 transition-colors"
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onDelete(expense);
+            }}
+            className="p-2 rounded-lg text-ink-muted hover:text-rose-600 hover:bg-rose-500/10 active:scale-95 transition-all"
             title="Delete expense"
             aria-label="Delete expense"
           >

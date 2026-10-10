@@ -48,6 +48,17 @@ export interface DailySummary {
   date: string;
   totalMinor: number;
   count: number;
+  averageMinor: number;
+}
+
+export interface UserBalance {
+  availableBalanceMinor: number;
+  currencyCode: string;
+  referenceDate: string;
+  totalExpensesMinor: number;
+  remainingBalanceMinor: number;
+  isConfigured: boolean;
+  updatedAt: string | null;
 }
 
 export interface MonthlySummary {
