@@ -16,5 +16,5 @@ export default defineConfig({
       },
     },
   },
-  base: './', // Relative base for GitHub Pages and static deployments
+  base: process.env.GITHUB_ACTIONS ? '/Daily-Expense-Track-/' : './',
 });
