@@ -15,6 +15,7 @@ import { ExpenseList } from '../features/expenses/ExpenseList.js';
 import { ExpenseFiltersBar } from '../features/expenses/ExpenseFilters.js';
 import { ExpenseFormModal } from '../features/expenses/ExpenseFormModal.js';
 import { DeleteConfirmModal } from '../features/expenses/DeleteConfirmModal.js';
+import { DailyExpenseReminder } from '../features/expenses/DailyExpenseReminder.js';
 import { EditBalanceModal } from '../features/balance/EditBalanceModal.js';
 import { InAppCalculator } from '../features/calculator/InAppCalculator.js';
 import { SettingsView } from '../features/settings/SettingsView.js';
@@ -257,6 +258,12 @@ const AuthenticatedDashboard: React.FC = () => {
         {/* TAB 1: OVERVIEW */}
         {activeTab === 'overview' && (
           <div className="space-y-6">
+            {/* Daily Expense Pending Reminder */}
+            <DailyExpenseReminder
+              todayExpenseCount={todaySummary?.count ?? 0}
+              onOpenAddExpense={() => handleOpenAdd()}
+            />
+
             {/* Dashboard Summary Metrics */}
             <DashboardMetrics
               availableBalanceMinor={balanceData?.availableBalanceMinor ?? null}

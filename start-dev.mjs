@@ -1,18 +1,21 @@
 import { spawn } from 'child_process';
+import path from 'path';
 
 console.log('🚀 Starting DailyFlow Fullstack Workspace (Backend & Frontend)...');
 
 const isWin = process.platform === 'win32';
 const npmCmd = isWin ? 'npm.cmd' : 'npm';
 
-const backend = spawn(npmCmd, ['--prefix', 'backend', 'run', 'dev'], {
+const backend = spawn(npmCmd, ['run', 'dev'], {
+  cwd: path.resolve('backend'),
   stdio: 'inherit',
-  shell: true,
+  shell: isWin,
 });
 
-const frontend = spawn(npmCmd, ['--prefix', 'frontend', 'run', 'dev'], {
+const frontend = spawn(npmCmd, ['run', 'dev'], {
+  cwd: path.resolve('frontend'),
   stdio: 'inherit',
-  shell: true,
+  shell: isWin,
 });
 
 process.on('SIGINT', () => {

@@ -141,17 +141,18 @@ export const api = {
       mockStorage.setActiveSession(res.data.user);
       return res.data;
     } catch (err: any) {
-      if (err instanceof ApiError) {
+      if (err instanceof ApiError && (err.status === 400 || err.status === 409 || err.status === 422)) {
         throw err;
       }
-      // If server is unreachable and no API_BASE_URL is configured, fallback to mockStorage
-      if (!API_BASE_URL) {
+      // Fallback to local persistent storage if backend is unreachable or proxy returns 500/502/network failure
+      try {
         const res = mockStorage.register(payload);
         setAuthToken(res.token);
         setCachedUser(res.user);
         return res;
+      } catch (mockErr: any) {
+        throw mockErr;
       }
-      throw err;
     }
   },
 
@@ -172,16 +173,18 @@ export const api = {
       mockStorage.setActiveSession(res.data.user);
       return res.data;
     } catch (err: any) {
-      if (err instanceof ApiError) {
+      if (err instanceof ApiError && (err.status === 401 || err.status === 403 || err.status === 400)) {
         throw err;
       }
-      if (!API_BASE_URL) {
+      // Fallback to local persistent storage if backend is unreachable or returns 500/proxy error
+      try {
         const res = mockStorage.login(payload);
         setAuthToken(res.token);
         setCachedUser(res.user);
         return res;
+      } catch (mockErr: any) {
+        throw mockErr;
       }
-      throw err;
     }
   },
 

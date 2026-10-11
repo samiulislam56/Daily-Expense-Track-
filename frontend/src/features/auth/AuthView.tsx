@@ -89,12 +89,23 @@ export const AuthView: React.FC = () => {
       }
     } catch (err: any) {
       console.error('Authentication error:', err);
-      setError(
-        err?.message ||
-          (mode === 'login'
-            ? 'Unable to log in. Please verify your credentials.'
-            : 'Unable to register. Username might already be in use.')
-      );
+      const isNotFoundOrInvalid =
+        err?.status === 401 ||
+        err?.message?.toLowerCase().includes('invalid username or password') ||
+        err?.message?.toLowerCase().includes('not found');
+
+      if (mode === 'login' && isNotFoundOrInvalid) {
+        setError(
+          'Invalid username or password. If you have not created an account yet, please click "Create Account" above to register.'
+        );
+      } else {
+        setError(
+          err?.message ||
+            (mode === 'login'
+              ? 'Unable to log in. Please check your credentials or create an account.'
+              : 'Unable to register. Username might already be in use.')
+        );
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -192,7 +203,7 @@ export const AuthView: React.FC = () => {
                   type="text"
                   autoComplete="username"
                   required
-                  placeholder="e.g. rahim"
+                  placeholder="e.g. samiul"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   className="w-full pr-3.5 py-2.5 bg-transparent text-sm text-[var(--text-ink)] placeholder-[var(--text-muted)]/50 focus:outline-none font-medium"
@@ -216,7 +227,7 @@ export const AuthView: React.FC = () => {
                   <input
                     id="auth-display-name"
                     type="text"
-                    placeholder="e.g. Rahim Chowdhury"
+                    placeholder="e.g. Samiul Islam"
                     value={displayName}
                     onChange={(e) => setDisplayName(e.target.value)}
                     className="w-full pr-3.5 py-2.5 bg-transparent text-sm text-[var(--text-ink)] placeholder-[var(--text-muted)]/50 focus:outline-none font-medium"
