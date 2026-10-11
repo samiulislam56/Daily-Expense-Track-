@@ -78,13 +78,25 @@ export interface DailySummary {
   incomeCount?: number;
 }
 
+export interface UserProfile {
+  id: string;
+  username: string;
+  displayName: string;
+  createdAt: string;
+}
+
+export interface AuthResponse {
+  token: string;
+  user: UserProfile;
+}
+
 export interface UserBalance {
-  availableBalanceMinor: number;
+  availableBalanceMinor: number | null;
   currencyCode: string;
-  referenceDate: string;
+  referenceDate: string | null;
   totalExpensesMinor: number;
   totalIncomeMinor?: number;
-  remainingBalanceMinor: number;
+  remainingBalanceMinor: number | null;
   isConfigured: boolean;
   updatedAt: string | null;
 }
@@ -180,7 +192,7 @@ export interface CopilotResponse {
   metricsSnapshot?: {
     todayExpenseMinor: number;
     monthExpenseMinor: number;
-    availableBalanceMinor: number;
+    availableBalanceMinor: number | null;
     remainingBudgetMinor?: number;
   };
 }

@@ -5,8 +5,8 @@ import { parseAmountToMinor, formatMinorToDecimalString, getTodayDateString } fr
 interface EditBalanceModalProps {
   isOpen: boolean;
   onClose: () => void;
-  currentBalanceMinor: number;
-  currentReferenceDate?: string;
+  currentBalanceMinor: number | null;
+  currentReferenceDate?: string | null;
   currencyCode?: string;
   onSave: (payload: { amountMinor: number; currencyCode: string; referenceDate: string }) => Promise<void>;
 }
@@ -26,7 +26,11 @@ export const EditBalanceModal: React.FC<EditBalanceModalProps> = ({
 
   useEffect(() => {
     if (isOpen) {
-      setAmountStr(currentBalanceMinor > 0 ? formatMinorToDecimalString(currentBalanceMinor) : '');
+      setAmountStr(
+        currentBalanceMinor !== null && currentBalanceMinor !== undefined && currentBalanceMinor > 0
+          ? formatMinorToDecimalString(currentBalanceMinor)
+          : ''
+      );
       setReferenceDate(currentReferenceDate || getTodayDateString());
       setError(null);
       setIsSubmitting(false);

@@ -12,6 +12,7 @@ export async function runMigrations(): Promise<void> {
     '001_init.sql',
     '002_user_balances.sql',
     '003_fintech_platform_upgrade.sql',
+    '004_user_authentication.sql',
   ];
 
   for (const file of migrationFiles) {

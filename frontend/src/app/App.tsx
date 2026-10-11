@@ -23,6 +23,8 @@ import { BudgetsView } from '../features/budgets/BudgetsView.js';
 import { SavingsGoalsView } from '../features/goals/SavingsGoalsView.js';
 import { RecurringPaymentsView } from '../features/recurring/RecurringPaymentsView.js';
 import { CopilotView } from '../features/copilot/CopilotView.js';
+import { AuthView } from '../features/auth/AuthView.js';
+import { useAuth } from '../context/AuthContext.js';
 
 import { useTheme } from '../hooks/useTheme.js';
 import { usePWAInstall } from '../hooks/usePWAInstall.js';
@@ -45,7 +47,7 @@ import { ActiveTab, Expense, ExpenseFilters, CopilotDraftTransaction } from '../
 import { getTodayDateString, getCurrentMonthString, formatBDT } from '../lib/utils.js';
 import { Wallet, Sparkles, AlertCircle, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 
-export const App: React.FC = () => {
+const AuthenticatedDashboard: React.FC = () => {
   const { theme, setTheme } = useTheme();
   const [activeTab, setActiveTab] = useState<ActiveTab>('overview');
   const [selectedDate, setSelectedDate] = useState<string>(getTodayDateString());
@@ -257,12 +259,12 @@ export const App: React.FC = () => {
           <div className="space-y-6">
             {/* Dashboard Summary Metrics */}
             <DashboardMetrics
-              availableBalanceMinor={balanceData?.availableBalanceMinor ?? 0}
+              availableBalanceMinor={balanceData?.availableBalanceMinor ?? null}
               isBalanceConfigured={balanceData?.isConfigured ?? false}
               balanceReferenceDate={balanceData?.referenceDate}
               totalIncomeMinor={balanceData?.totalIncomeMinor ?? 0}
               totalExpensesAgainstBalanceMinor={balanceData?.totalExpensesMinor ?? 0}
-              remainingBalanceMinor={balanceData?.remainingBalanceMinor ?? 0}
+              remainingBalanceMinor={balanceData?.remainingBalanceMinor ?? null}
               onEditBalance={() => setIsEditBalanceOpen(true)}
               todayTotalMinor={todaySummary?.totalMinor ?? 0}
               todayCount={todaySummary?.count ?? 0}
@@ -605,7 +607,7 @@ export const App: React.FC = () => {
       <EditBalanceModal
         isOpen={isEditBalanceOpen}
         onClose={() => setIsEditBalanceOpen(false)}
-        currentBalanceMinor={balanceData?.availableBalanceMinor ?? 0}
+        currentBalanceMinor={balanceData?.availableBalanceMinor ?? null}
         currentReferenceDate={balanceData?.referenceDate}
         currencyCode={currency}
         onSave={handleSaveBalance}
@@ -637,4 +639,28 @@ export const App: React.FC = () => {
       <ToastContainer toasts={toasts} onDismiss={removeToast} />
     </div>
   );
+};
+
+export const App: React.FC = () => {
+  const { user, isAuthenticated, isLoading } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-[var(--bg-main,#0b1120)] flex flex-col items-center justify-center p-6 text-center">
+        <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center border border-emerald-500/20 shadow-lg animate-pulse mb-4">
+          <Wallet className="w-7 h-7" />
+        </div>
+        <h2 className="text-xl font-bold text-[var(--text-ink,#f8fafc)] mb-1">DailyFlow</h2>
+        <p className="text-xs text-[var(--text-muted,#94a3b8)] animate-pulse">
+          Loading your secure financial workspace...
+        </p>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated || !user) {
+    return <AuthView />;
+  }
+
+  return <AuthenticatedDashboard key={user.id} />;
 };

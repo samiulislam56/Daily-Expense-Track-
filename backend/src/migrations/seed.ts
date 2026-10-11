@@ -1,5 +1,6 @@
 import { getDatabase } from '../database/db.js';
 import { runMigrations } from './runner.js';
+import { hashPassword } from '../utils/crypto.js';
 import { config } from '../config/env.js';
 
 export const DEFAULT_CATEGORIES = [
@@ -26,12 +27,15 @@ export async function runSeed(): Promise<void> {
   // Ensure tables exist
   await runMigrations();
 
-  // 1. Seed Default User
+  // 1. Seed Demo User
+  const demoPasswordHash = hashPassword('password123');
   await db.query(
-    `INSERT INTO users (id, email, display_name)
-     VALUES ($1, $2, $3)
-     ON CONFLICT (id) DO NOTHING`,
-    [config.defaultUserId, 'john.doe@example.com', 'John Doe']
+    `INSERT INTO users (id, email, display_name, username, password_hash)
+     VALUES ($1, $2, $3, $4, $5)
+     ON CONFLICT (id) DO UPDATE SET
+       username = COALESCE(users.username, EXCLUDED.username),
+       password_hash = COALESCE(users.password_hash, EXCLUDED.password_hash)`,
+    [config.defaultUserId, 'john.doe@example.com', 'John Doe', 'demo_user', demoPasswordHash]
   );
 
   // 2. Seed User Preferences

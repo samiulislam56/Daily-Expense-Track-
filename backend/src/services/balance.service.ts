@@ -2,12 +2,12 @@ import { balanceRepository } from '../repositories/balance.repository.js';
 import { UpdateBalanceInput } from '../schemas/balance.schema.js';
 
 export interface BalanceSummaryDTO {
-  availableBalanceMinor: number;
+  availableBalanceMinor: number | null;
   currencyCode: string;
-  referenceDate: string;
+  referenceDate: string | null;
   totalExpensesMinor: number;
   totalIncomeMinor: number;
-  remainingBalanceMinor: number;
+  remainingBalanceMinor: number | null;
   isConfigured: boolean;
   updatedAt: string | null;
 }
@@ -15,16 +15,16 @@ export interface BalanceSummaryDTO {
 export class BalanceService {
   async getBalanceSummary(userId: string): Promise<BalanceSummaryDTO> {
     const balance = await balanceRepository.findByUserId(userId);
-    const today = new Date().toISOString().split('T')[0];
 
     if (!balance) {
+      const cashflow = await balanceRepository.getCashflowSince(userId, '1970-01-01');
       return {
-        availableBalanceMinor: 0,
+        availableBalanceMinor: null,
         currencyCode: 'BDT',
-        referenceDate: today,
-        totalExpensesMinor: 0,
-        totalIncomeMinor: 0,
-        remainingBalanceMinor: 0,
+        referenceDate: null,
+        totalExpensesMinor: cashflow.expensesMinor,
+        totalIncomeMinor: cashflow.incomeMinor,
+        remainingBalanceMinor: null,
         isConfigured: false,
         updatedAt: null,
       };

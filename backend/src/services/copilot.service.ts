@@ -26,7 +26,7 @@ export interface CopilotResponse {
   metricsSnapshot?: {
     todayExpenseMinor: number;
     monthExpenseMinor: number;
-    availableBalanceMinor: number;
+    availableBalanceMinor: number | null;
     remainingBudgetMinor?: number;
   };
 }
@@ -223,7 +223,7 @@ export class CopilotService {
       answer = `Today you have recorded **${count}** expense transaction${count === 1 ? '' : 's'} totaling **${formatBDT(todayTotal)}**.\n\n` +
         `• **Average Expense per Transaction:** ${formatBDT(avg)}\n` +
         (income > 0 ? `• **Today's Income:** ${formatBDT(income)}\n` : '') +
-        `• **Current Total Available Balance:** ${formatBDT(ctx.balanceSummary.remainingBalanceMinor)}\n\n` +
+        `• **Current Total Available Balance:** ${ctx.balanceSummary.remainingBalanceMinor !== null ? formatBDT(ctx.balanceSummary.remainingBalanceMinor) : 'Not set yet (tap Edit Balance to set)'}\n\n` +
         (count === 0 ? `You haven't recorded any expenses yet today. Enjoy your day or click Quick Add to log one!` : `Your spending is tracked deterministically based on your verified records.`);
     }
     // 2. "What are my biggest spending categories this month?"

@@ -1,10 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { copilotService } from '../services/copilot.service.js';
-import { config } from '../config/env.js';
-
 function getUserId(req: Request): string {
-  const headerUserId = req.headers['x-user-id'];
-  return (Array.isArray(headerUserId) ? headerUserId[0] : headerUserId) || config.defaultUserId;
+  return req.user!.id;
 }
 
 export async function askCopilot(req: Request, res: Response, next: NextFunction): Promise<void> {

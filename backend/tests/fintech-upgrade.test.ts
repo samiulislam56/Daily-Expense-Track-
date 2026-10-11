@@ -2,16 +2,24 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import request from 'supertest';
 import { app } from '../src/server.js';
 import { runSeed, DEFAULT_CATEGORIES } from '../src/migrations/seed.js';
+import { generateToken } from '../src/utils/crypto.js';
+import { config } from '../src/config/env.js';
 
 describe('DailyFlow Fintech Upgrade & AI Copilot Integration Tests', () => {
+  let authToken: string;
+
   beforeAll(async () => {
     await runSeed();
+    authToken = generateToken({ sub: config.defaultUserId, username: 'demo_user' });
   });
 
   let createdAccountId: string;
 
   it('GET /api/v1/accounts returns default seeded accounts', async () => {
-    const res = await request(app).get('/api/v1/accounts');
+    const res = await request(app)
+      .get('/api/v1/accounts')
+      .set('Authorization', `Bearer ${authToken}`);
+
     expect(res.status).toBe(200);
     expect(res.body.data).toBeInstanceOf(Array);
     expect(res.body.data.length).toBeGreaterThanOrEqual(3);
@@ -23,6 +31,7 @@ describe('DailyFlow Fintech Upgrade & AI Copilot Integration Tests', () => {
   it('POST /api/v1/accounts creates a custom bank account', async () => {
     const res = await request(app)
       .post('/api/v1/accounts')
+      .set('Authorization', `Bearer ${authToken}`)
       .send({
         name: 'City Bank Amex',
         type: 'bank',
@@ -43,6 +52,7 @@ describe('DailyFlow Fintech Upgrade & AI Copilot Integration Tests', () => {
     // Establish opening balance of ৳10,000 (1,000,000 minor)
     await request(app)
       .put('/api/v1/balance')
+      .set('Authorization', `Bearer ${authToken}`)
       .send({
         amountMinor: 1000000,
         referenceDate: testDate,
@@ -52,6 +62,7 @@ describe('DailyFlow Fintech Upgrade & AI Copilot Integration Tests', () => {
     // Record income of ৳50,000 (5,000,000 minor)
     const incRes = await request(app)
       .post('/api/v1/expenses')
+      .set('Authorization', `Bearer ${authToken}`)
       .send({
         amountMinor: 5000000,
         currencyCode: 'BDT',
@@ -69,6 +80,7 @@ describe('DailyFlow Fintech Upgrade & AI Copilot Integration Tests', () => {
     // Record expense of ৳2,000 (200,000 minor)
     await request(app)
       .post('/api/v1/expenses')
+      .set('Authorization', `Bearer ${authToken}`)
       .send({
         amountMinor: 200000,
         currencyCode: 'BDT',
@@ -80,7 +92,10 @@ describe('DailyFlow Fintech Upgrade & AI Copilot Integration Tests', () => {
       });
 
     // Verify balance summary
-    const balRes = await request(app).get('/api/v1/balance');
+    const balRes = await request(app)
+      .get('/api/v1/balance')
+      .set('Authorization', `Bearer ${authToken}`);
+
     expect(balRes.status).toBe(200);
     // Opening: 1,000,000 + Income: 5,000,000 - Expense: 200,000 = 5,800,000
     expect(balRes.body.data.availableBalanceMinor).toBe(1000000);
@@ -95,6 +110,7 @@ describe('DailyFlow Fintech Upgrade & AI Copilot Integration Tests', () => {
     // Set overall month budget: ৳30,000 (3,000,000 minor)
     const bRes = await request(app)
       .post('/api/v1/budgets')
+      .set('Authorization', `Bearer ${authToken}`)
       .send({
         month: currentMonth,
         amountMinor: 3000000,
@@ -107,7 +123,10 @@ describe('DailyFlow Fintech Upgrade & AI Copilot Integration Tests', () => {
     expect(bRes.body.data.spentMinor).toBeGreaterThanOrEqual(200000);
 
     // List budgets
-    const listRes = await request(app).get(`/api/v1/budgets?month=${currentMonth}`);
+    const listRes = await request(app)
+      .get(`/api/v1/budgets?month=${currentMonth}`)
+      .set('Authorization', `Bearer ${authToken}`);
+
     expect(listRes.status).toBe(200);
     expect(listRes.body.data.length).toBeGreaterThanOrEqual(1);
   });
@@ -116,6 +135,7 @@ describe('DailyFlow Fintech Upgrade & AI Copilot Integration Tests', () => {
   it('POST /api/v1/goals creates a savings goal and handles contributions', async () => {
     const res = await request(app)
       .post('/api/v1/goals')
+      .set('Authorization', `Bearer ${authToken}`)
       .send({
         title: 'Emergency Medical Buffer',
         targetAmountMinor: 10000000, // ৳100,000
@@ -133,6 +153,7 @@ describe('DailyFlow Fintech Upgrade & AI Copilot Integration Tests', () => {
     // Contribute ৳10,000 (1,000,000 minor)
     const contRes = await request(app)
       .post(`/api/v1/goals/${goalId}/contribute`)
+      .set('Authorization', `Bearer ${authToken}`)
       .send({ amountMinor: 1000000 });
 
     expect(contRes.status).toBe(200);
@@ -143,6 +164,7 @@ describe('DailyFlow Fintech Upgrade & AI Copilot Integration Tests', () => {
   it('POST /api/v1/recurring creates a recurring rule and processes payment', async () => {
     const recRes = await request(app)
       .post('/api/v1/recurring')
+      .set('Authorization', `Bearer ${authToken}`)
       .send({
         type: 'expense',
         amountMinor: 150000, // ৳1,500 broadband internet
@@ -157,7 +179,10 @@ describe('DailyFlow Fintech Upgrade & AI Copilot Integration Tests', () => {
     const recId = recRes.body.data.id;
 
     // Pay now
-    const payRes = await request(app).post(`/api/v1/recurring/${recId}/pay`);
+    const payRes = await request(app)
+      .post(`/api/v1/recurring/${recId}/pay`)
+      .set('Authorization', `Bearer ${authToken}`);
+
     expect(payRes.status).toBe(200);
     expect(payRes.body.data.transactionId).toBeDefined();
     // Next due date moved forward 1 month
@@ -168,6 +193,7 @@ describe('DailyFlow Fintech Upgrade & AI Copilot Integration Tests', () => {
     // 1. Query today's spending
     const q1 = await request(app)
       .post('/api/v1/copilot/query')
+      .set('Authorization', `Bearer ${authToken}`)
       .send({ query: 'How much did I spend today?' });
 
     expect(q1.status).toBe(200);
@@ -177,6 +203,7 @@ describe('DailyFlow Fintech Upgrade & AI Copilot Integration Tests', () => {
     // 2. Natural language draft transaction
     const q2 = await request(app)
       .post('/api/v1/copilot/query')
+      .set('Authorization', `Bearer ${authToken}`)
       .send({ query: 'Spent 450 BDT on Food today' });
 
     expect(q2.status).toBe(200);

@@ -1,10 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
 import { balanceService } from '../services/balance.service.js';
-import { config } from '../config/env.js';
 
 function getUserId(req: Request): string {
-  const headerUserId = req.headers['x-user-id'];
-  return (Array.isArray(headerUserId) ? headerUserId[0] : headerUserId) || config.defaultUserId;
+  return req.user!.id;
 }
 
 export async function getBalance(req: Request, res: Response, next: NextFunction): Promise<void> {

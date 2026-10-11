@@ -12,10 +12,49 @@ import {
   SavingsGoal,
   RecurringTransaction,
   CopilotResponse,
+  UserProfile,
+  AuthResponse,
 } from '../types/index.js';
 import { mockStorage } from './mockStorage.js';
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
+
+const TOKEN_KEY = 'dailyflow_auth_token';
+const USER_KEY = 'dailyflow_auth_user';
+
+export function getAuthToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem(TOKEN_KEY);
+}
+
+export function setAuthToken(token: string | null): void {
+  if (typeof window === 'undefined') return;
+  if (token) {
+    localStorage.setItem(TOKEN_KEY, token);
+  } else {
+    localStorage.removeItem(TOKEN_KEY);
+  }
+}
+
+export function getCachedUser(): UserProfile | null {
+  if (typeof window === 'undefined') return null;
+  const raw = localStorage.getItem(USER_KEY);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+export function setCachedUser(user: UserProfile | null): void {
+  if (typeof window === 'undefined') return;
+  if (user) {
+    localStorage.setItem(USER_KEY, JSON.stringify(user));
+  } else {
+    localStorage.removeItem(USER_KEY);
+  }
+}
 
 export class ApiError extends Error {
   public code: string;
@@ -39,11 +78,20 @@ export function isStandaloneDemo(): boolean {
   return false;
 }
 
+function shouldRethrow(err: any): boolean {
+  if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+    return true;
+  }
+  return false;
+}
+
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const url = `${API_BASE_URL}${endpoint}`;
-  const headers = {
+  const token = getAuthToken();
+  const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    ...(options.headers || {}),
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(options.headers as Record<string, string> || {}),
   };
 
   const response = await fetch(url, { ...options, headers });
@@ -70,6 +118,111 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 }
 
 export const api = {
+  // Authentication
+  async register(payload: {
+    username: string;
+    password: string;
+    confirmPassword?: string;
+    displayName?: string;
+  }): Promise<AuthResponse> {
+    if (isStandaloneDemo()) {
+      const res = mockStorage.register(payload);
+      setAuthToken(res.token);
+      setCachedUser(res.user);
+      return res;
+    }
+    try {
+      const res = await request<{ data: AuthResponse }>('/api/v1/auth/register', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+      setAuthToken(res.data.token);
+      setCachedUser(res.data.user);
+      mockStorage.setActiveSession(res.data.user);
+      return res.data;
+    } catch (err: any) {
+      if (err instanceof ApiError) {
+        throw err;
+      }
+      // If server is unreachable and no API_BASE_URL is configured, fallback to mockStorage
+      if (!API_BASE_URL) {
+        const res = mockStorage.register(payload);
+        setAuthToken(res.token);
+        setCachedUser(res.user);
+        return res;
+      }
+      throw err;
+    }
+  },
+
+  async login(payload: { username: string; password: string }): Promise<AuthResponse> {
+    if (isStandaloneDemo()) {
+      const res = mockStorage.login(payload);
+      setAuthToken(res.token);
+      setCachedUser(res.user);
+      return res;
+    }
+    try {
+      const res = await request<{ data: AuthResponse }>('/api/v1/auth/login', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+      setAuthToken(res.data.token);
+      setCachedUser(res.data.user);
+      mockStorage.setActiveSession(res.data.user);
+      return res.data;
+    } catch (err: any) {
+      if (err instanceof ApiError) {
+        throw err;
+      }
+      if (!API_BASE_URL) {
+        const res = mockStorage.login(payload);
+        setAuthToken(res.token);
+        setCachedUser(res.user);
+        return res;
+      }
+      throw err;
+    }
+  },
+
+  async getMe(): Promise<UserProfile> {
+    if (isStandaloneDemo()) {
+      const user = mockStorage.getMe();
+      setCachedUser(user);
+      return user;
+    }
+    try {
+      const res = await request<{ data: { user: UserProfile } }>('/api/v1/auth/me');
+      setCachedUser(res.data.user);
+      mockStorage.setActiveSession(res.data.user);
+      return res.data.user;
+    } catch (err: any) {
+      if (shouldRethrow(err)) {
+        setAuthToken(null);
+        setCachedUser(null);
+        mockStorage.logout();
+        throw err;
+      }
+      const cached = getCachedUser();
+      if (cached) return cached;
+      return mockStorage.getMe();
+    }
+  },
+
+  async logout(): Promise<void> {
+    try {
+      if (!isStandaloneDemo()) {
+        await request<void>('/api/v1/auth/logout', { method: 'POST' });
+      }
+    } catch {
+      // Ignore network errors during logout
+    } finally {
+      setAuthToken(null);
+      setCachedUser(null);
+      mockStorage.logout();
+    }
+  },
+
   // Categories
   async getCategories(): Promise<Category[]> {
     if (isStandaloneDemo()) {
@@ -79,6 +232,7 @@ export const api = {
       const res = await request<{ data: Category[] }>('/api/v1/categories');
       return res.data;
     } catch (err) {
+      if (shouldRethrow(err)) throw err;
       console.warn('API unavailable, falling back to local demo storage:', err);
       return mockStorage.getCategories();
     }
@@ -93,6 +247,7 @@ export const api = {
       const res = await request<{ data: Account[] }>('/api/v1/accounts');
       return res.data;
     } catch (err) {
+      if (shouldRethrow(err)) throw err;
       return mockStorage.getAccounts();
     }
   },
@@ -114,6 +269,7 @@ export const api = {
       });
       return res.data;
     } catch (err) {
+      if (shouldRethrow(err)) throw err;
       return mockStorage.createAccount(payload);
     }
   },
@@ -138,6 +294,7 @@ export const api = {
       });
       return res.data;
     } catch (err) {
+      if (shouldRethrow(err)) throw err;
       return mockStorage.updateAccount(id, payload);
     }
   },
@@ -150,6 +307,7 @@ export const api = {
     try {
       await request<void>(`/api/v1/accounts/${id}`, { method: 'DELETE' });
     } catch (err) {
+      if (shouldRethrow(err)) throw err;
       mockStorage.deleteAccount(id);
     }
   },
@@ -173,6 +331,7 @@ export const api = {
       const queryString = params.toString() ? `?${params.toString()}` : '';
       return await request<PaginatedExpensesResponse>(`/api/v1/expenses${queryString}`);
     } catch (err) {
+      if (shouldRethrow(err)) throw err;
       console.warn('API unavailable, falling back to local demo storage:', err);
       return mockStorage.getExpenses(filters);
     }
@@ -186,6 +345,7 @@ export const api = {
       const res = await request<{ data: Expense }>(`/api/v1/expenses/${id}`);
       return res.data;
     } catch (err) {
+      if (shouldRethrow(err)) throw err;
       return mockStorage.getExpenseById(id);
     }
   },
@@ -210,6 +370,7 @@ export const api = {
       });
       return res.data;
     } catch (err) {
+      if (shouldRethrow(err)) throw err;
       return mockStorage.createExpense(payload);
     }
   },
@@ -237,6 +398,7 @@ export const api = {
       });
       return res.data;
     } catch (err) {
+      if (shouldRethrow(err)) throw err;
       return mockStorage.updateExpense(id, payload);
     }
   },
@@ -251,6 +413,7 @@ export const api = {
         method: 'DELETE',
       });
     } catch (err) {
+      if (shouldRethrow(err)) throw err;
       mockStorage.deleteExpense(id);
     }
   },
@@ -264,6 +427,7 @@ export const api = {
       const res = await request<{ data: DailySummary }>(`/api/v1/summary/daily?date=${date}`);
       return res.data;
     } catch (err) {
+      if (shouldRethrow(err)) throw err;
       return mockStorage.getDailySummary(date);
     }
   },
@@ -276,6 +440,7 @@ export const api = {
       const res = await request<{ data: MonthlySummary }>(`/api/v1/summary/monthly?month=${month}`);
       return res.data;
     } catch (err) {
+      if (shouldRethrow(err)) throw err;
       return mockStorage.getMonthlySummary(month);
     }
   },
@@ -292,6 +457,7 @@ export const api = {
       const res = await request<{ data: CategorySummaryItem[] }>(`/api/v1/summary/categories${queryString}`);
       return res.data;
     } catch (err) {
+      if (shouldRethrow(err)) throw err;
       return mockStorage.getCategorySummary(from, to);
     }
   },
@@ -305,6 +471,7 @@ export const api = {
       const res = await request<{ data: UserBalance }>('/api/v1/balance');
       return res.data;
     } catch (err) {
+      if (shouldRethrow(err)) throw err;
       return mockStorage.getBalance();
     }
   },
@@ -324,6 +491,7 @@ export const api = {
       });
       return res.data;
     } catch (err) {
+      if (shouldRethrow(err)) throw err;
       return mockStorage.updateBalance(payload);
     }
   },
@@ -338,6 +506,7 @@ export const api = {
       const res = await request<{ data: Budget[] }>(`/api/v1/budgets${qs}`);
       return res.data;
     } catch (err) {
+      if (shouldRethrow(err)) throw err;
       return mockStorage.getBudgets(month);
     }
   },
@@ -358,6 +527,7 @@ export const api = {
       });
       return res.data;
     } catch (err) {
+      if (shouldRethrow(err)) throw err;
       return mockStorage.setBudget(payload);
     }
   },
@@ -370,6 +540,7 @@ export const api = {
     try {
       await request<void>(`/api/v1/budgets/${id}`, { method: 'DELETE' });
     } catch (err) {
+      if (shouldRethrow(err)) throw err;
       mockStorage.deleteBudget(id);
     }
   },
@@ -383,6 +554,7 @@ export const api = {
       const res = await request<{ data: SavingsGoal[] }>('/api/v1/goals');
       return res.data;
     } catch (err) {
+      if (shouldRethrow(err)) throw err;
       return mockStorage.getGoals();
     }
   },
@@ -405,6 +577,7 @@ export const api = {
       });
       return res.data;
     } catch (err) {
+      if (shouldRethrow(err)) throw err;
       return mockStorage.createGoal(payload);
     }
   },
@@ -420,6 +593,7 @@ export const api = {
       });
       return res.data;
     } catch (err) {
+      if (shouldRethrow(err)) throw err;
       return mockStorage.contributeGoal(id, amountMinor);
     }
   },
@@ -432,6 +606,7 @@ export const api = {
     try {
       await request<void>(`/api/v1/goals/${id}`, { method: 'DELETE' });
     } catch (err) {
+      if (shouldRethrow(err)) throw err;
       mockStorage.deleteGoal(id);
     }
   },
@@ -445,6 +620,7 @@ export const api = {
       const res = await request<{ data: RecurringTransaction[] }>('/api/v1/recurring');
       return res.data;
     } catch (err) {
+      if (shouldRethrow(err)) throw err;
       return mockStorage.getRecurring();
     }
   },
@@ -468,6 +644,7 @@ export const api = {
       });
       return res.data;
     } catch (err) {
+      if (shouldRethrow(err)) throw err;
       return mockStorage.createRecurring(payload);
     }
   },
@@ -483,6 +660,7 @@ export const api = {
       );
       return res.data;
     } catch (err) {
+      if (shouldRethrow(err)) throw err;
       return mockStorage.processRecurringPayment(id);
     }
   },
@@ -495,6 +673,7 @@ export const api = {
     try {
       await request<void>(`/api/v1/recurring/${id}`, { method: 'DELETE' });
     } catch (err) {
+      if (shouldRethrow(err)) throw err;
       mockStorage.deleteRecurring(id);
     }
   },
@@ -511,6 +690,7 @@ export const api = {
       });
       return res.data;
     } catch (err) {
+      if (shouldRethrow(err)) throw err;
       console.warn('Backend Copilot endpoint unreachable, using client deterministic analyzer:', err);
       return mockStorage.askCopilot(query);
     }

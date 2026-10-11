@@ -39,6 +39,18 @@ export class ConflictError extends AppError {
   }
 }
 
+export class UnauthorizedError extends AppError {
+  constructor(message: string = 'Authentication required. Please log in.') {
+    super(message, 401, 'UNAUTHORIZED');
+  }
+}
+
+export class ForbiddenError extends AppError {
+  constructor(message: string = 'You do not have permission to access this resource.') {
+    super(message, 403, 'FORBIDDEN');
+  }
+}
+
 export function errorHandler(
   err: any,
   req: Request,

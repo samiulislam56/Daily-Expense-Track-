@@ -2,10 +2,15 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import request from 'supertest';
 import { app } from '../src/server.js';
 import { runSeed, DEFAULT_CATEGORIES } from '../src/migrations/seed.js';
+import { generateToken } from '../src/utils/crypto.js';
+import { config } from '../src/config/env.js';
 
 describe('DailyFlow API Integration Tests (SRS 9 & 13.1)', () => {
+  let authToken: string;
+
   beforeAll(async () => {
     await runSeed();
+    authToken = generateToken({ sub: config.defaultUserId, username: 'demo_user' });
   });
 
   it('GET /health returns 200 { status: "ok" }', async () => {
@@ -36,6 +41,7 @@ describe('DailyFlow API Integration Tests (SRS 9 & 13.1)', () => {
 
     const res = await request(app)
       .post('/api/v1/expenses')
+      .set('Authorization', `Bearer ${authToken}`)
       .send(newExpense);
 
     expect(res.status).toBe(201);
@@ -56,6 +62,7 @@ describe('DailyFlow API Integration Tests (SRS 9 & 13.1)', () => {
 
     const res = await request(app)
       .post('/api/v1/expenses')
+      .set('Authorization', `Bearer ${authToken}`)
       .send(invalidExpense);
 
     expect(res.status).toBe(400);
@@ -68,6 +75,7 @@ describe('DailyFlow API Integration Tests (SRS 9 & 13.1)', () => {
   it('GET /api/v1/expenses returns paginated list with meta', async () => {
     const res = await request(app)
       .get('/api/v1/expenses')
+      .set('Authorization', `Bearer ${authToken}`)
       .query({ page: 1, pageSize: 10 });
 
     expect(res.status).toBe(200);
@@ -79,7 +87,9 @@ describe('DailyFlow API Integration Tests (SRS 9 & 13.1)', () => {
   });
 
   it('GET /api/v1/expenses/:id returns single expense', async () => {
-    const res = await request(app).get(`/api/v1/expenses/${createdExpenseId}`);
+    const res = await request(app)
+      .get(`/api/v1/expenses/${createdExpenseId}`)
+      .set('Authorization', `Bearer ${authToken}`);
     expect(res.status).toBe(200);
     expect(res.body.data.id).toBe(createdExpenseId);
     expect(res.body.data.amountMinor).toBe(25000);
@@ -88,6 +98,7 @@ describe('DailyFlow API Integration Tests (SRS 9 & 13.1)', () => {
   it('PATCH /api/v1/expenses/:id updates expense fields', async () => {
     const res = await request(app)
       .patch(`/api/v1/expenses/${createdExpenseId}`)
+      .set('Authorization', `Bearer ${authToken}`)
       .send({ amountMinor: 28000, note: 'Updated grocery haul' });
 
     expect(res.status).toBe(200);
@@ -98,6 +109,7 @@ describe('DailyFlow API Integration Tests (SRS 9 & 13.1)', () => {
   it('GET /api/v1/summary/daily returns correct day total and count', async () => {
     const res = await request(app)
       .get('/api/v1/summary/daily')
+      .set('Authorization', `Bearer ${authToken}`)
       .query({ date: '2026-10-10' });
 
     expect(res.status).toBe(200);
@@ -109,6 +121,7 @@ describe('DailyFlow API Integration Tests (SRS 9 & 13.1)', () => {
   it('GET /api/v1/summary/monthly returns correct month total and count', async () => {
     const res = await request(app)
       .get('/api/v1/summary/monthly')
+      .set('Authorization', `Bearer ${authToken}`)
       .query({ month: '2026-10' });
 
     expect(res.status).toBe(200);
@@ -118,7 +131,9 @@ describe('DailyFlow API Integration Tests (SRS 9 & 13.1)', () => {
   });
 
   it('GET /api/v1/summary/categories returns category breakdown with percentages', async () => {
-    const res = await request(app).get('/api/v1/summary/categories');
+    const res = await request(app)
+      .get('/api/v1/summary/categories')
+      .set('Authorization', `Bearer ${authToken}`);
 
     expect(res.status).toBe(200);
     expect(res.body.data).toBeInstanceOf(Array);
@@ -131,11 +146,15 @@ describe('DailyFlow API Integration Tests (SRS 9 & 13.1)', () => {
   });
 
   it('DELETE /api/v1/expenses/:id deletes expense and returns 204', async () => {
-    const res = await request(app).delete(`/api/v1/expenses/${createdExpenseId}`);
+    const res = await request(app)
+      .delete(`/api/v1/expenses/${createdExpenseId}`)
+      .set('Authorization', `Bearer ${authToken}`);
     expect(res.status).toBe(204);
 
     // Verify it is no longer found
-    const getRes = await request(app).get(`/api/v1/expenses/${createdExpenseId}`);
+    const getRes = await request(app)
+      .get(`/api/v1/expenses/${createdExpenseId}`)
+      .set('Authorization', `Bearer ${authToken}`);
     expect(getRes.status).toBe(404);
   });
 });

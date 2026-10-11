@@ -9,18 +9,19 @@ import {
   TrendingUp,
   Target,
   Sparkles,
+  PlusCircle,
 } from 'lucide-react';
 import { formatCurrency, formatDateReadable, formatBDT } from '../../lib/utils.js';
 import { Budget } from '../../types/index.js';
 
 interface DashboardMetricsProps {
   // Card 1: Total Available Balance
-  availableBalanceMinor: number;
+  availableBalanceMinor: number | null;
   isBalanceConfigured: boolean;
-  balanceReferenceDate?: string;
+  balanceReferenceDate?: string | null;
   totalIncomeMinor?: number;
   totalExpensesAgainstBalanceMinor: number;
-  remainingBalanceMinor: number;
+  remainingBalanceMinor: number | null;
   onEditBalance: () => void;
 
   // Card 2: Today's Total Spending
@@ -56,8 +57,7 @@ export const DashboardMetrics: React.FC<DashboardMetricsProps> = ({
   overallBudget,
   currencyCode = 'BDT',
 }) => {
-  const isRemainingNegative = isBalanceConfigured && remainingBalanceMinor < 0;
-  const netMonthSavings = monthTotalIncomeMinor - monthTotalExpensesMinor;
+  const isRemainingNegative = isBalanceConfigured && remainingBalanceMinor !== null && remainingBalanceMinor < 0;
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 mb-6">
@@ -72,7 +72,7 @@ export const DashboardMetrics: React.FC<DashboardMetricsProps> = ({
               type="button"
               onClick={onEditBalance}
               className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-[var(--accent)] hover:bg-[var(--accent)]/10 transition-colors"
-              title="Edit Opening Balance"
+              title={isBalanceConfigured ? 'Edit Opening Balance' : 'Set Opening Balance'}
               aria-label="Edit available balance"
             >
               <Edit2 className="w-3.5 h-3.5" />
@@ -82,24 +82,46 @@ export const DashboardMetrics: React.FC<DashboardMetricsProps> = ({
             </div>
           </div>
         </div>
-        <div>
-          <div className="text-xl sm:text-2xl font-bold font-mono tracking-tight text-[var(--text-ink)] tabular-nums flex items-baseline gap-2">
-            <span>{formatCurrency(remainingBalanceMinor, currencyCode)}</span>
-          </div>
-          <div className="flex items-center justify-between mt-1 text-[11px] text-[var(--text-muted)]">
-            <span>
-              {isBalanceConfigured
-                ? `Opening: ${formatBDT(availableBalanceMinor)} • Since ${balanceReferenceDate || 'today'}`
-                : 'Tap edit to set reference balance'}
-            </span>
-          </div>
-          {totalIncomeMinor > 0 && (
-            <div className="mt-1 flex items-center gap-1 text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">
-              <TrendingUp className="w-3 h-3" />
-              <span>+{formatBDT(totalIncomeMinor)} recorded income</span>
+
+        {!isBalanceConfigured || availableBalanceMinor === null ? (
+          <div className="py-1">
+            <div className="text-base sm:text-lg font-bold text-[var(--text-ink)] mb-0.5">
+              No balance added yet
             </div>
-          )}
-        </div>
+            <p className="text-[11px] text-[var(--text-muted)] mb-2.5 leading-snug">
+              Set your opening balance to start tracking available funds.
+            </p>
+            <button
+              type="button"
+              onClick={onEditBalance}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs shadow-sm transition-all active:scale-95"
+            >
+              <PlusCircle className="w-3.5 h-3.5" />
+              <span>+ Add Balance</span>
+            </button>
+          </div>
+        ) : (
+          <div>
+            <div
+              className={`text-xl sm:text-2xl font-bold font-mono tracking-tight tabular-nums flex items-baseline gap-2 ${
+                isRemainingNegative ? 'text-rose-500' : 'text-[var(--text-ink)]'
+              }`}
+            >
+              <span>{formatCurrency(remainingBalanceMinor ?? 0, currencyCode)}</span>
+            </div>
+            <div className="flex items-center justify-between mt-1 text-[11px] text-[var(--text-muted)]">
+              <span>
+                {`Opening: ${formatBDT(availableBalanceMinor)} • Since ${balanceReferenceDate || 'today'}`}
+              </span>
+            </div>
+            {totalIncomeMinor > 0 && (
+              <div className="mt-1 flex items-center gap-1 text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">
+                <TrendingUp className="w-3 h-3" />
+                <span>+{formatBDT(totalIncomeMinor)} recorded income</span>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* CARD 2: TODAY'S TOTAL SPENDING */}

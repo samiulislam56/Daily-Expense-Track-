@@ -13,7 +13,10 @@ import {
   WifiOff,
   RefreshCw,
   Smartphone,
+  LogOut,
+  User,
 } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext.js';
 import { ThemeMode } from '../../types/index.js';
 import { formatDateReadable, getTodayDateString } from '../../lib/utils.js';
 
@@ -45,6 +48,7 @@ export const Header: React.FC<HeaderProps> = ({
   onInstallClick,
   syncStatus,
 }) => {
+  const { user, logout } = useAuth();
   const isToday = selectedDate === getTodayDateString();
 
   const handlePrevDay = () => {
@@ -214,6 +218,29 @@ export const Header: React.FC<HeaderProps> = ({
             <Plus className="w-4 h-4 stroke-[2.5]" />
             <span>Add Expense</span>
           </button>
+
+          {/* User Profile & Logout */}
+          {user && (
+            <div className="flex items-center gap-2 pl-2 border-l border-border/80">
+              <div
+                className="w-8 h-8 rounded-xl bg-teal-500/10 border border-teal-500/20 text-teal-600 dark:text-teal-400 font-bold text-xs flex items-center justify-center uppercase select-none"
+                title={`Signed in as @${user.username}${user.displayName ? ` (${user.displayName})` : ''}`}
+                aria-label={`User @${user.username}`}
+              >
+                {user.displayName ? user.displayName.slice(0, 2) : user.username.slice(0, 2)}
+              </div>
+              <button
+                type="button"
+                onClick={logout}
+                className="flex items-center gap-1.5 p-2 sm:px-3 sm:py-1.5 rounded-xl border border-border bg-surface hover:bg-rose-500/10 hover:border-rose-500/30 text-ink-muted hover:text-rose-500 text-xs font-semibold transition-all"
+                title="Sign out of DailyFlow"
+                aria-label="Logout"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Logout</span>
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </header>

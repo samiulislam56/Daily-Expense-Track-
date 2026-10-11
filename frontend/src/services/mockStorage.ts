@@ -13,6 +13,8 @@ import {
   RecurringTransaction,
   CopilotResponse,
   CopilotDraftTransaction,
+  UserProfile,
+  AuthResponse,
 } from '../types/index.js';
 
 const STORAGE_KEYS = {
@@ -224,6 +226,136 @@ function generateInitialExpenses(): Expense[] {
 class MockStorageService {
   private memoryStore: Record<string, any> = {};
 
+  public getCurrentUserId(): string {
+    const stored = this.getStorageItem<string | null>('dailyflow_active_user_id', null);
+    return stored || '00000000-0000-0000-0000-000000000001';
+  }
+
+  public setCurrentUserId(userId: string | null): void {
+    this.setStorageItem('dailyflow_active_user_id', userId);
+  }
+
+  public setActiveSession(user: UserProfile): void {
+    this.setCurrentUserId(user.id);
+  }
+
+  private getUserKey(prefix: string): string {
+    const uid = this.getCurrentUserId();
+    return `dailyflow_u_${uid}_${prefix}`;
+  }
+
+  public register(payload: { username: string; password: string; confirmPassword?: string; displayName?: string }): AuthResponse {
+    const cleanUsername = payload.username.trim().toLowerCase();
+    const users = this.getStorageItem<Array<{ id: string; username: string; password: string; displayName: string; createdAt: string }>>(
+      'dailyflow_users_list',
+      []
+    );
+
+    if (users.some((u) => u.username.toLowerCase() === cleanUsername)) {
+      throw new Error('A user with this username already exists. Please choose a different username.');
+    }
+
+    const userId = `u-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const user = {
+      id: userId,
+      username: payload.username.trim(),
+      displayName: payload.displayName?.trim() || payload.username.trim(),
+      password: payload.password,
+      createdAt: new Date().toISOString(),
+    };
+
+    users.push(user);
+    this.setStorageItem('dailyflow_users_list', users);
+    this.setCurrentUserId(userId);
+
+    // Initial state: all balance values start as null or empty!
+    // No predefined amount should appear automatically.
+    this.setStorageItem(this.getUserKey('balance'), null);
+    this.setStorageItem(this.getUserKey('expenses'), []);
+    this.setStorageItem(this.getUserKey('accounts'), []);
+    this.setStorageItem(this.getUserKey('budgets'), []);
+    this.setStorageItem(this.getUserKey('goals'), []);
+    this.setStorageItem(this.getUserKey('recurring'), []);
+
+    return {
+      token: `demo_token_${userId}`,
+      user: {
+        id: user.id,
+        username: user.username,
+        displayName: user.displayName,
+        createdAt: user.createdAt,
+      },
+    };
+  }
+
+  public login(payload: { username: string; password: string }): AuthResponse {
+    const cleanUsername = payload.username.trim().toLowerCase();
+
+    // Support demo user
+    if (cleanUsername === 'demo_user' && payload.password === 'password123') {
+      const demoId = '00000000-0000-0000-0000-000000000001';
+      this.setCurrentUserId(demoId);
+      return {
+        token: `demo_token_${demoId}`,
+        user: {
+          id: demoId,
+          username: 'demo_user',
+          displayName: 'Demo User',
+          createdAt: new Date().toISOString(),
+        },
+      };
+    }
+
+    const users = this.getStorageItem<Array<{ id: string; username: string; password: string; displayName: string; createdAt: string }>>(
+      'dailyflow_users_list',
+      []
+    );
+    const found = users.find((u) => u.username.toLowerCase() === cleanUsername);
+
+    if (!found || found.password !== payload.password) {
+      throw new Error('Invalid username or password.');
+    }
+
+    this.setCurrentUserId(found.id);
+
+    return {
+      token: `demo_token_${found.id}`,
+      user: {
+        id: found.id,
+        username: found.username,
+        displayName: found.displayName,
+        createdAt: found.createdAt,
+      },
+    };
+  }
+
+  public getMe(): UserProfile {
+    const uid = this.getCurrentUserId();
+    const users = this.getStorageItem<Array<{ id: string; username: string; password: string; displayName: string; createdAt: string }>>(
+      'dailyflow_users_list',
+      []
+    );
+    const found = users.find((u) => u.id === uid);
+    if (found) {
+      return {
+        id: found.id,
+        username: found.username,
+        displayName: found.displayName,
+        createdAt: found.createdAt,
+      };
+    }
+    return {
+      id: '00000000-0000-0000-0000-000000000001',
+      username: 'demo_user',
+      displayName: 'Demo User',
+      createdAt: new Date().toISOString(),
+    };
+  }
+
+  public logout(): void {
+    this.setCurrentUserId(null);
+  }
+
   private getStorageItem<T>(key: string, defaultValue: T): T {
     try {
       if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
@@ -262,10 +394,11 @@ class MockStorageService {
 
   // --- Accounts ---
   public getAccounts(): Account[] {
-    let accs = this.getStorageItem<Account[]>(STORAGE_KEYS.ACCOUNTS, []);
-    if (!accs || accs.length === 0) {
-      accs = DEFAULT_ACCOUNTS;
-      this.setStorageItem(STORAGE_KEYS.ACCOUNTS, accs);
+    const isDemo = this.getCurrentUserId() === '00000000-0000-0000-0000-000000000001';
+    let accs = this.getStorageItem<Account[] | null>(this.getUserKey('accounts'), null);
+    if (accs === null) {
+      accs = isDemo ? DEFAULT_ACCOUNTS : [];
+      this.setStorageItem(this.getUserKey('accounts'), accs);
     }
     return accs;
   }
@@ -275,7 +408,7 @@ class MockStorageService {
     const id = `acc-${Date.now()}`;
     const newAcc: Account = {
       id,
-      userId: '00000000-0000-0000-0000-000000000001',
+      userId: this.getCurrentUserId(),
       name: payload.name,
       type: payload.type || 'cash',
       balanceMinor: payload.balanceMinor || 0,
@@ -288,7 +421,7 @@ class MockStorageService {
       list.forEach((a) => (a.isDefault = false));
     }
     list.push(newAcc);
-    this.setStorageItem(STORAGE_KEYS.ACCOUNTS, list);
+    this.setStorageItem(this.getUserKey('accounts'), list);
     return newAcc;
   }
 
@@ -301,21 +434,22 @@ class MockStorageService {
     }
     const updated = { ...list[idx], ...payload, updatedAt: new Date().toISOString() };
     list[idx] = updated;
-    this.setStorageItem(STORAGE_KEYS.ACCOUNTS, list);
+    this.setStorageItem(this.getUserKey('accounts'), list);
     return updated;
   }
 
   public deleteAccount(id: string): void {
     const list = this.getAccounts().filter((a) => a.id !== id);
-    this.setStorageItem(STORAGE_KEYS.ACCOUNTS, list);
+    this.setStorageItem(this.getUserKey('accounts'), list);
   }
 
   // --- Expenses & Income Transactions ---
   public getExpensesRaw(): Expense[] {
-    let exps = this.getStorageItem<Expense[]>(STORAGE_KEYS.EXPENSES, []);
-    if (!exps || exps.length === 0) {
-      exps = generateInitialExpenses();
-      this.setStorageItem(STORAGE_KEYS.EXPENSES, exps);
+    const isDemo = this.getCurrentUserId() === '00000000-0000-0000-0000-000000000001';
+    let exps = this.getStorageItem<Expense[] | null>(this.getUserKey('expenses'), null);
+    if (exps === null) {
+      exps = isDemo ? generateInitialExpenses() : [];
+      this.setStorageItem(this.getUserKey('expenses'), exps);
     }
     return exps;
   }
@@ -381,7 +515,7 @@ class MockStorageService {
     const id = `exp-${Date.now()}`;
     const newExp: Expense = {
       id,
-      userId: '00000000-0000-0000-0000-000000000001',
+      userId: this.getCurrentUserId(),
       categoryId: payload.categoryId,
       accountId: payload.accountId || null,
       type: payload.type || 'expense',
@@ -394,7 +528,7 @@ class MockStorageService {
       updatedAt: new Date().toISOString(),
     };
     list.unshift(newExp);
-    this.setStorageItem(STORAGE_KEYS.EXPENSES, list);
+    this.setStorageItem(this.getUserKey('expenses'), list);
     return this.populateRelations(newExp);
   }
 
@@ -404,13 +538,13 @@ class MockStorageService {
     if (idx === -1) throw new Error('Transaction not found');
     const updated = { ...list[idx], ...payload, updatedAt: new Date().toISOString() };
     list[idx] = updated;
-    this.setStorageItem(STORAGE_KEYS.EXPENSES, list);
+    this.setStorageItem(this.getUserKey('expenses'), list);
     return this.populateRelations(updated);
   }
 
   public deleteExpense(id: string): void {
     const list = this.getExpensesRaw().filter((e) => e.id !== id);
-    this.setStorageItem(STORAGE_KEYS.EXPENSES, list);
+    this.setStorageItem(this.getUserKey('expenses'), list);
   }
 
   // --- Summaries ---
@@ -483,14 +617,50 @@ class MockStorageService {
 
   // --- Balance ---
   public getBalance(): UserBalance {
-    const raw = this.getStorageItem<any>(STORAGE_KEYS.BALANCE, null);
-    const availableBalanceMinor = raw?.availableBalanceMinor ?? 2500000; // ৳25,000 opening
-    const currencyCode = raw?.currencyCode || 'BDT';
-    const referenceDate = raw?.referenceDate || getFirstDayOfMonth(getTodayString());
-    const isConfigured = raw?.isConfigured ?? true;
-    const updatedAt = raw?.updatedAt || new Date().toISOString();
+    const raw = this.getStorageItem<any>(this.getUserKey('balance'), null);
+    const isDemo = this.getCurrentUserId() === '00000000-0000-0000-0000-000000000001';
 
-    const transactions = this.getExpensesRaw().filter((e) => e.expenseDate >= referenceDate);
+    if (!raw && !isDemo) {
+      const transactions = this.getExpensesRaw();
+      const totalExpensesMinor = transactions
+        .filter((e) => (e.type || 'expense') === 'expense')
+        .reduce((sum, e) => sum + e.amountMinor, 0);
+      const totalIncomeMinor = transactions
+        .filter((e) => e.type === 'income')
+        .reduce((sum, e) => sum + e.amountMinor, 0);
+
+      return {
+        availableBalanceMinor: null,
+        currencyCode: 'BDT',
+        referenceDate: null,
+        totalExpensesMinor,
+        totalIncomeMinor,
+        remainingBalanceMinor: null,
+        isConfigured: false,
+        updatedAt: null,
+      };
+    }
+
+    const availableBalanceMinor = raw?.availableBalanceMinor ?? (isDemo ? 2500000 : null);
+    const currencyCode = raw?.currencyCode || 'BDT';
+    const referenceDate = raw?.referenceDate || (isDemo ? getFirstDayOfMonth(getTodayString()) : null);
+    const isConfigured = raw?.isConfigured ?? (isDemo ? true : false);
+    const updatedAt = raw?.updatedAt || null;
+
+    if (availableBalanceMinor === null) {
+      return {
+        availableBalanceMinor: null,
+        currencyCode,
+        referenceDate: null,
+        totalExpensesMinor: 0,
+        totalIncomeMinor: 0,
+        remainingBalanceMinor: null,
+        isConfigured: false,
+        updatedAt: null,
+      };
+    }
+
+    const transactions = this.getExpensesRaw().filter((e) => referenceDate ? e.expenseDate >= referenceDate : true);
     const totalExpensesMinor = transactions
       .filter((e) => (e.type || 'expense') === 'expense')
       .reduce((sum, e) => sum + e.amountMinor, 0);
@@ -527,50 +697,53 @@ class MockStorageService {
       updatedAt,
     };
 
-    this.setStorageItem(STORAGE_KEYS.BALANCE, storedData);
+    this.setStorageItem(this.getUserKey('balance'), storedData);
     return this.getBalance();
   }
 
   // --- Budgets ---
   public getBudgets(month?: string): Budget[] {
     const targetMonth = month || getTodayString().slice(0, 7);
-    let stored = this.getStorageItem<Budget[]>(STORAGE_KEYS.BUDGETS, []);
-    if (!stored || stored.length === 0) {
-      stored = [
-        {
-          id: 'b-default-1',
-          userId: '00000000-0000-0000-0000-000000000001',
-          month: targetMonth,
-          categoryId: null,
-          categoryName: null,
-          amountMinor: 3500000, // ৳35,000 overall
-          spentMinor: 0,
-          remainingMinor: 3500000,
-          percentageUsed: 0,
-          warningThresholdPercent: 80,
-          isExceeded: false,
-          isWarning: false,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        },
-        {
-          id: 'b-default-2',
-          userId: '00000000-0000-0000-0000-000000000001',
-          month: targetMonth,
-          categoryId: '11111111-1111-1111-1111-111111111101',
-          categoryName: 'Food & Groceries',
-          amountMinor: 1200000, // ৳12,000
-          spentMinor: 0,
-          remainingMinor: 1200000,
-          percentageUsed: 0,
-          warningThresholdPercent: 80,
-          isExceeded: false,
-          isWarning: false,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        },
-      ];
-      this.setStorageItem(STORAGE_KEYS.BUDGETS, stored);
+    const isDemo = this.getCurrentUserId() === '00000000-0000-0000-0000-000000000001';
+    let stored = this.getStorageItem<Budget[] | null>(this.getUserKey('budgets'), null);
+    if (stored === null) {
+      stored = isDemo
+        ? [
+            {
+              id: 'b-default-1',
+              userId: this.getCurrentUserId(),
+              month: targetMonth,
+              categoryId: null,
+              categoryName: null,
+              amountMinor: 3500000, // ৳35,000 overall
+              spentMinor: 0,
+              remainingMinor: 3500000,
+              percentageUsed: 0,
+              warningThresholdPercent: 80,
+              isExceeded: false,
+              isWarning: false,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            },
+            {
+              id: 'b-default-2',
+              userId: this.getCurrentUserId(),
+              month: targetMonth,
+              categoryId: '11111111-1111-1111-1111-111111111101',
+              categoryName: 'Food & Groceries',
+              amountMinor: 1200000, // ৳12,000
+              spentMinor: 0,
+              remainingMinor: 1200000,
+              percentageUsed: 0,
+              warningThresholdPercent: 80,
+              isExceeded: false,
+              isWarning: false,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            },
+          ]
+        : [];
+      this.setStorageItem(this.getUserKey('budgets'), stored);
     }
 
     const monthExpenses = this.getExpensesRaw().filter(
@@ -600,7 +773,7 @@ class MockStorageService {
   }
 
   public setBudget(payload: { month: string; categoryId?: string | null; amountMinor: number; warningThresholdPercent?: number }): Budget {
-    const list = this.getStorageItem<Budget[]>(STORAGE_KEYS.BUDGETS, []);
+    const list = this.getStorageItem<Budget[]>(this.getUserKey('budgets'), []);
     const catId = payload.categoryId || null;
     const categories = this.getCategories();
     const cat = catId ? categories.find((c) => c.id === catId) : null;
@@ -619,7 +792,7 @@ class MockStorageService {
     } else {
       budgetItem = {
         id: `budget-${Date.now()}`,
-        userId: '00000000-0000-0000-0000-000000000001',
+        userId: this.getCurrentUserId(),
         month: payload.month,
         categoryId: catId,
         categoryName: cat?.name || null,
@@ -636,57 +809,60 @@ class MockStorageService {
       list.push(budgetItem);
     }
 
-    this.setStorageItem(STORAGE_KEYS.BUDGETS, list);
+    this.setStorageItem(this.getUserKey('budgets'), list);
     const updatedList = this.getBudgets(payload.month);
     return updatedList.find((b) => b.id === budgetItem.id) || budgetItem;
   }
 
   public deleteBudget(id: string): void {
-    const list = this.getStorageItem<Budget[]>(STORAGE_KEYS.BUDGETS, []).filter((b) => b.id !== id);
-    this.setStorageItem(STORAGE_KEYS.BUDGETS, list);
+    const list = this.getStorageItem<Budget[]>(this.getUserKey('budgets'), []).filter((b) => b.id !== id);
+    this.setStorageItem(this.getUserKey('budgets'), list);
   }
 
   // --- Savings Goals ---
   public getGoals(): SavingsGoal[] {
-    let goals = this.getStorageItem<SavingsGoal[]>(STORAGE_KEYS.GOALS, []);
-    if (!goals || goals.length === 0) {
-      goals = [
-        {
-          id: 'goal-1',
-          userId: '00000000-0000-0000-0000-000000000001',
-          title: 'Emergency Cash Reserve',
-          targetAmountMinor: 10000000, // ৳100,000
-          currentAmountMinor: 3500000, // ৳35,000
-          remainingMinor: 6500000,
-          progressPercent: 35,
-          targetDate: '2026-12-31',
-          categoryId: null,
-          categoryName: null,
-          notes: '3 months basic cost of living buffer',
-          isCompleted: false,
-          suggestedMonthlyContributionMinor: 750000,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        },
-        {
-          id: 'goal-2',
-          userId: '00000000-0000-0000-0000-000000000001',
-          title: 'MacBook M3 Upgrade',
-          targetAmountMinor: 18000000, // ৳180,000
-          currentAmountMinor: 7200000, // ৳72,000
-          remainingMinor: 10800000,
-          progressPercent: 40,
-          targetDate: '2027-04-30',
-          categoryId: null,
-          categoryName: null,
-          notes: 'Next gen workstation fund',
-          isCompleted: false,
-          suggestedMonthlyContributionMinor: 900000,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        },
-      ];
-      this.setStorageItem(STORAGE_KEYS.GOALS, goals);
+    const isDemo = this.getCurrentUserId() === '00000000-0000-0000-0000-000000000001';
+    let goals = this.getStorageItem<SavingsGoal[] | null>(this.getUserKey('goals'), null);
+    if (goals === null) {
+      goals = isDemo
+        ? [
+            {
+              id: 'goal-1',
+              userId: this.getCurrentUserId(),
+              title: 'Emergency Cash Reserve',
+              targetAmountMinor: 10000000, // ৳100,000
+              currentAmountMinor: 3500000, // ৳35,000
+              remainingMinor: 6500000,
+              progressPercent: 35,
+              targetDate: '2026-12-31',
+              categoryId: null,
+              categoryName: null,
+              notes: '3 months basic cost of living buffer',
+              isCompleted: false,
+              suggestedMonthlyContributionMinor: 750000,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            },
+            {
+              id: 'goal-2',
+              userId: this.getCurrentUserId(),
+              title: 'MacBook M3 Upgrade',
+              targetAmountMinor: 18000000, // ৳180,000
+              currentAmountMinor: 7200000, // ৳72,000
+              remainingMinor: 10800000,
+              progressPercent: 40,
+              targetDate: '2027-04-30',
+              categoryId: null,
+              categoryName: null,
+              notes: 'Next gen workstation fund',
+              isCompleted: false,
+              suggestedMonthlyContributionMinor: 900000,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            },
+          ]
+        : [];
+      this.setStorageItem(this.getUserKey('goals'), goals);
     }
 
     return goals.map((g) => {
@@ -713,7 +889,7 @@ class MockStorageService {
     const id = `goal-${Date.now()}`;
     const newGoal: SavingsGoal = {
       id,
-      userId: '00000000-0000-0000-0000-000000000001',
+      userId: this.getCurrentUserId(),
       title: payload.title,
       targetAmountMinor: payload.targetAmountMinor,
       currentAmountMinor: payload.currentAmountMinor || 0,
@@ -728,7 +904,7 @@ class MockStorageService {
       updatedAt: new Date().toISOString(),
     };
     list.push(newGoal);
-    this.setStorageItem(STORAGE_KEYS.GOALS, list);
+    this.setStorageItem(this.getUserKey('goals'), list);
     return newGoal;
   }
 
@@ -738,54 +914,57 @@ class MockStorageService {
     if (idx === -1) throw new Error('Goal not found');
     list[idx].currentAmountMinor += amountMinor;
     list[idx].updatedAt = new Date().toISOString();
-    this.setStorageItem(STORAGE_KEYS.GOALS, list);
+    this.setStorageItem(this.getUserKey('goals'), list);
     return list[idx];
   }
 
   public deleteGoal(id: string): void {
     const list = this.getGoals().filter((g) => g.id !== id);
-    this.setStorageItem(STORAGE_KEYS.GOALS, list);
+    this.setStorageItem(this.getUserKey('goals'), list);
   }
 
   // --- Recurring Transactions ---
   public getRecurring(): RecurringTransaction[] {
-    let recs = this.getStorageItem<RecurringTransaction[]>(STORAGE_KEYS.RECURRING, []);
-    if (!recs || recs.length === 0) {
-      recs = [
-        {
-          id: 'rec-1',
-          userId: '00000000-0000-0000-0000-000000000001',
-          type: 'expense',
-          amountMinor: 285000, // ৳2,850
-          categoryId: '11111111-1111-1111-1111-111111111103',
-          categoryName: 'Bills & Utilities',
-          accountId: 'acc-2222-2222-2222-2222',
-          accountName: 'City Bank Savings',
-          frequency: 'monthly',
-          nextDueDate: '2026-10-15',
-          note: 'Fiber Broadband Internet Bill',
-          isActive: true,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        },
-        {
-          id: 'rec-2',
-          userId: '00000000-0000-0000-0000-000000000001',
-          type: 'expense',
-          amountMinor: 120000, // ৳1,200
-          categoryId: '11111111-1111-1111-1111-111111111105',
-          categoryName: 'Entertainment',
-          accountId: 'acc-3333-3333-3333-3333',
-          accountName: 'bKash Personal',
-          frequency: 'monthly',
-          nextDueDate: '2026-10-25',
-          note: 'Spotify Family Subscription',
-          isActive: true,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        },
-      ];
-      this.setStorageItem(STORAGE_KEYS.RECURRING, recs);
+    const isDemo = this.getCurrentUserId() === '00000000-0000-0000-0000-000000000001';
+    let recs = this.getStorageItem<RecurringTransaction[] | null>(this.getUserKey('recurring'), null);
+    if (recs === null) {
+      recs = isDemo
+        ? [
+            {
+              id: 'rec-1',
+              userId: this.getCurrentUserId(),
+              type: 'expense',
+              amountMinor: 285000, // ৳2,850
+              categoryId: '11111111-1111-1111-1111-111111111103',
+              categoryName: 'Bills & Utilities',
+              accountId: 'acc-2222-2222-2222-2222',
+              accountName: 'City Bank Savings',
+              frequency: 'monthly',
+              nextDueDate: '2026-10-15',
+              note: 'Fiber Broadband Internet Bill',
+              isActive: true,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            },
+            {
+              id: 'rec-2',
+              userId: this.getCurrentUserId(),
+              type: 'expense',
+              amountMinor: 120000, // ৳1,200
+              categoryId: '11111111-1111-1111-1111-111111111105',
+              categoryName: 'Entertainment',
+              accountId: 'acc-3333-3333-3333-3333',
+              accountName: 'bKash Personal',
+              frequency: 'monthly',
+              nextDueDate: '2026-10-25',
+              note: 'Spotify Family Subscription',
+              isActive: true,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            },
+          ]
+        : [];
+      this.setStorageItem(this.getUserKey('recurring'), recs);
     }
     return recs;
   }
@@ -807,7 +986,7 @@ class MockStorageService {
 
     const newRec: RecurringTransaction = {
       id: `rec-${Date.now()}`,
-      userId: '00000000-0000-0000-0000-000000000001',
+      userId: this.getCurrentUserId(),
       type: payload.type,
       amountMinor: payload.amountMinor,
       categoryId: payload.categoryId,
@@ -822,7 +1001,7 @@ class MockStorageService {
       updatedAt: new Date().toISOString(),
     };
     list.push(newRec);
-    this.setStorageItem(STORAGE_KEYS.RECURRING, list);
+    this.setStorageItem(this.getUserKey('recurring'), list);
     return newRec;
   }
 
@@ -857,14 +1036,14 @@ class MockStorageService {
     rec.nextDueDate = nextDueDate;
     rec.updatedAt = new Date().toISOString();
     list[idx] = rec;
-    this.setStorageItem(STORAGE_KEYS.RECURRING, list);
+    this.setStorageItem(this.getUserKey('recurring'), list);
 
     return { recurring: rec, transactionId: createdExp.id };
   }
 
   public deleteRecurring(id: string): void {
     const list = this.getRecurring().filter((r) => r.id !== id);
-    this.setStorageItem(STORAGE_KEYS.RECURRING, list);
+    this.setStorageItem(this.getUserKey('recurring'), list);
   }
 
   // --- AI Finance Copilot Simulation (Deterministic Grounding) ---
@@ -946,9 +1125,10 @@ class MockStorageService {
     }
 
     if (q.includes('today')) {
+      const balStr = balance.remainingBalanceMinor !== null ? formatBDT(balance.remainingBalanceMinor) : 'Not set yet (tap Edit Balance to set)';
       answer = `Today's verified spending is **${formatBDT(todaySummary.totalMinor)}** across **${todaySummary.count}** expense transaction${todaySummary.count === 1 ? '' : 's'}.\n\n` +
         `• **Average Expense per Transaction:** ${formatBDT(todaySummary.averageMinor)}\n` +
-        `• **Current Total Available Balance:** ${formatBDT(balance.remainingBalanceMinor)}`;
+        `• **Current Total Available Balance:** ${balStr}`;
     } else if (q.includes('biggest') || q.includes('top') || q.includes('category') || q.includes('categories')) {
       if (breakdown.length === 0) {
         answer = `No categorized expenses logged yet for this month (${currentMonth}).`;
@@ -974,8 +1154,9 @@ class MockStorageService {
       const gList = goals.map((g) => `• **${g.title}**: Saved ${formatBDT(g.currentAmountMinor)} of ${formatBDT(g.targetAmountMinor)} (${g.progressPercent}%). Target: **${g.targetDate}**. Suggested: **${formatBDT(g.suggestedMonthlyContributionMinor)}/mo**`).join('\n');
       answer = `Here is your savings goal roadmap:\n\n${gList}`;
     } else {
+      const balStr = balance.remainingBalanceMinor !== null ? formatBDT(balance.remainingBalanceMinor) : 'Not configured yet';
       answer = `Hello! I am your **DailyFlow Finance Copilot**.\n\n` +
-        `• **Available Balance:** ${formatBDT(balance.remainingBalanceMinor)}\n` +
+        `• **Available Balance:** ${balStr}\n` +
         `• **Today's Expenses:** ${formatBDT(todaySummary.totalMinor)}\n` +
         `• **This Month Total:** ${formatBDT(monthSummary.totalMinor)}\n\n` +
         `Ask me: *"How much did I spend today?"*, *"How much budget remains?"*, or type: *"Spent 450 on Lunch"* to draft a transaction!`;
