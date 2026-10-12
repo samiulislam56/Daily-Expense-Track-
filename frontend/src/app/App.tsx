@@ -594,6 +594,16 @@ const AuthenticatedDashboard: React.FC = () => {
             />
           </div>
         )}
+
+        {/* Global Footer Credit */}
+        <footer className="mt-12 pt-6 pb-2 text-center text-xs text-[var(--text-muted)] border-t border-[var(--border)]">
+          <p className="flex items-center justify-center gap-1.5 font-medium">
+            <span>DailyFlow Personal Finance</span>
+            <span>&bull;</span>
+            <span>Developed by</span>
+            <span className="text-emerald-600 dark:text-emerald-400 font-bold">Sami</span>
+          </p>
+        </footer>
       </main>
 
       {/* Desktop Magnification Dock */}

@@ -111,6 +111,23 @@ export const AuthView: React.FC = () => {
     }
   };
 
+  const handleQuickRegister = async () => {
+    setError(null);
+    setIsSubmitting(true);
+    try {
+      await register({
+        username: username.trim(),
+        password,
+        confirmPassword: password,
+        displayName: displayName.trim() || username.trim(),
+      });
+    } catch (err: any) {
+      setError(err?.message || 'Failed to create account.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <div className="min-h-screen w-full bg-[var(--bg-main)] flex flex-col justify-center items-center p-4 sm:p-6 transition-colors duration-200">
       {/* Decorative background aura */}
@@ -177,10 +194,25 @@ export const AuthView: React.FC = () => {
           {error && (
             <div
               role="alert"
-              className="mb-5 p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-start gap-2.5 text-xs text-rose-600 dark:text-rose-400"
+              className="mb-5 p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-xs text-rose-600 dark:text-rose-400 space-y-2.5"
             >
-              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-              <div className="leading-relaxed font-medium">{error}</div>
+              <div className="flex items-start gap-2.5">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                <div className="leading-relaxed font-medium">{error}</div>
+              </div>
+              {mode === 'login' && username.trim().length >= 3 && password.length >= 4 && (
+                <div className="pt-2.5 border-t border-rose-500/20 flex items-center justify-between gap-2 flex-wrap">
+                  <span className="text-[11px] text-[var(--text-ink)] font-medium">New on this device?</span>
+                  <button
+                    type="button"
+                    onClick={handleQuickRegister}
+                    disabled={isSubmitting}
+                    className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs shadow-sm transition-all active:scale-95 disabled:opacity-60"
+                  >
+                    Create Account as "{username.trim()}"
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
@@ -325,12 +357,23 @@ export const AuthView: React.FC = () => {
           </form>
 
           {/* Privacy & Isolation Highlight */}
-          <div className="mt-6 pt-5 border-t border-[var(--border)] text-center">
+          <div className="mt-6 pt-5 border-t border-[var(--border)] text-center space-y-2">
             <div className="inline-flex items-center gap-1.5 text-[11px] text-[var(--text-muted)]">
               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
               <span>Isolated multi-user encryption • Independent financial data</span>
             </div>
+            <div className="text-[11px] font-medium text-[var(--text-muted)] flex items-center justify-center gap-1.5">
+              <span>Developed by</span>
+              <span className="text-emerald-600 dark:text-emerald-400 font-bold tracking-wide">Sami</span>
+            </div>
           </div>
+        </div>
+
+        {/* Outer Credit */}
+        <div className="mt-5 text-center">
+          <p className="text-xs text-[var(--text-muted)] font-medium">
+            DailyFlow &bull; Developed by <span className="text-emerald-600 dark:text-emerald-400 font-semibold">Sami</span>
+          </p>
         </div>
       </div>
     </div>

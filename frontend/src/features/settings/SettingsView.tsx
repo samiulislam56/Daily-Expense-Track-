@@ -210,6 +210,17 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </div>
         </div>
       </div>
+
+      {/* 5. Developer Credit */}
+      <div className="p-4 rounded-2xl bg-surface border border-border shadow-card flex items-center justify-between">
+        <div className="text-xs">
+          <p className="font-bold text-ink">DailyFlow Finance</p>
+          <p className="text-[11px] text-ink-muted">Smart Personal Expense Platform</p>
+        </div>
+        <div className="text-xs font-medium text-ink-muted">
+          Developed by <span className="text-emerald-600 dark:text-emerald-400 font-bold">Sami</span>
+        </div>
+      </div>
     </div>
   );
 };

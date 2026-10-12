@@ -288,24 +288,88 @@ class MockStorageService {
     };
   }
 
+  public importUser(user: { id: string; username: string; password: string; displayName: string; createdAt: string }): void {
+    const users = this.getStorageItem<Array<{ id: string; username: string; password: string; displayName: string; createdAt: string }>>(
+      'dailyflow_users_list',
+      []
+    );
+    const cleanUsername = user.username.trim().toLowerCase();
+    const existingIndex = users.findIndex((u) => u.username.toLowerCase() === cleanUsername);
+    if (existingIndex >= 0) {
+      users[existingIndex] = { ...users[existingIndex], ...user };
+    } else {
+      users.push(user);
+    }
+    this.setStorageItem('dailyflow_users_list', users);
+  }
+
+  public getAllUserData(userId: string): any {
+    return {
+      balance: this.getStorageItem(`dailyflow_u_${userId}_balance`, null),
+      expenses: this.getStorageItem(`dailyflow_u_${userId}_expenses`, []),
+      accounts: this.getStorageItem(`dailyflow_u_${userId}_accounts`, []),
+      budgets: this.getStorageItem(`dailyflow_u_${userId}_budgets`, []),
+      goals: this.getStorageItem(`dailyflow_u_${userId}_goals`, []),
+      recurring: this.getStorageItem(`dailyflow_u_${userId}_recurring`, []),
+    };
+  }
+
+  public restoreAllUserData(userId: string, data: any): void {
+    if (!data) return;
+    if (data.balance !== undefined) this.setStorageItem(`dailyflow_u_${userId}_balance`, data.balance);
+    if (Array.isArray(data.expenses)) this.setStorageItem(`dailyflow_u_${userId}_expenses`, data.expenses);
+    if (Array.isArray(data.accounts)) this.setStorageItem(`dailyflow_u_${userId}_accounts`, data.accounts);
+    if (Array.isArray(data.budgets)) this.setStorageItem(`dailyflow_u_${userId}_budgets`, data.budgets);
+    if (Array.isArray(data.goals)) this.setStorageItem(`dailyflow_u_${userId}_goals`, data.goals);
+    if (Array.isArray(data.recurring)) this.setStorageItem(`dailyflow_u_${userId}_recurring`, data.recurring);
+  }
+
   public login(payload: { username: string; password: string }): AuthResponse {
     const cleanUsername = payload.username.trim().toLowerCase();
 
-    // Support demo user
-    if (cleanUsername === 'demo_user' && payload.password === 'password123') {
-      const demoId = '00000000-0000-0000-0000-000000000001';
-      this.setCurrentUserId(demoId);
+    // 1. Built-in system profiles (demo_user, sami, samiul)
+    const SYSTEM_USERS = [
+      {
+        id: '00000000-0000-0000-0000-000000000001',
+        username: 'demo_user',
+        displayName: 'Demo User',
+        password: 'password123',
+        createdAt: '2026-01-01T00:00:00.000Z',
+      },
+      {
+        id: 'u-sami-default-root',
+        username: 'sami',
+        displayName: 'Samiul Islam',
+        password: 'sami1234',
+        createdAt: '2026-01-01T00:00:00.000Z',
+      },
+      {
+        id: 'u-samiul-default-root',
+        username: 'samiul',
+        displayName: 'Samiul Islam',
+        password: 'sami1234',
+        createdAt: '2026-01-01T00:00:00.000Z',
+      },
+    ];
+
+    const matchedSystem = SYSTEM_USERS.find(
+      (u) => u.username.toLowerCase() === cleanUsername && u.password === payload.password
+    );
+
+    if (matchedSystem) {
+      this.setCurrentUserId(matchedSystem.id);
       return {
-        token: `demo_token_${demoId}`,
+        token: `demo_token_${matchedSystem.id}`,
         user: {
-          id: demoId,
-          username: 'demo_user',
-          displayName: 'Demo User',
-          createdAt: new Date().toISOString(),
+          id: matchedSystem.id,
+          username: matchedSystem.username,
+          displayName: matchedSystem.displayName,
+          createdAt: matchedSystem.createdAt,
         },
       };
     }
 
+    // 2. Local device registered users
     const users = this.getStorageItem<Array<{ id: string; username: string; password: string; displayName: string; createdAt: string }>>(
       'dailyflow_users_list',
       []
@@ -331,6 +395,38 @@ class MockStorageService {
 
   public getMe(): UserProfile {
     const uid = this.getCurrentUserId();
+
+    const SYSTEM_USERS = [
+      {
+        id: '00000000-0000-0000-0000-000000000001',
+        username: 'demo_user',
+        displayName: 'Demo User',
+        createdAt: '2026-01-01T00:00:00.000Z',
+      },
+      {
+        id: 'u-sami-default-root',
+        username: 'sami',
+        displayName: 'Samiul Islam',
+        createdAt: '2026-01-01T00:00:00.000Z',
+      },
+      {
+        id: 'u-samiul-default-root',
+        username: 'samiul',
+        displayName: 'Samiul Islam',
+        createdAt: '2026-01-01T00:00:00.000Z',
+      },
+    ];
+
+    const matchedSystem = SYSTEM_USERS.find((u) => u.id === uid);
+    if (matchedSystem) {
+      return {
+        id: matchedSystem.id,
+        username: matchedSystem.username,
+        displayName: matchedSystem.displayName,
+        createdAt: matchedSystem.createdAt,
+      };
+    }
+
     const users = this.getStorageItem<Array<{ id: string; username: string; password: string; displayName: string; createdAt: string }>>(
       'dailyflow_users_list',
       []

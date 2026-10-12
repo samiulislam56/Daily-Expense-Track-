@@ -143,4 +143,36 @@ describe('Frontend Multi-User Authentication & Data Isolation Tests', () => {
     mockStorage.logout();
     expect(mockStorage.getCurrentUserId()).toBe('00000000-0000-0000-0000-000000000001');
   });
+
+  it('Default Sami profile logs in successfully across all environments with null initial balance', () => {
+    const res = mockStorage.login({
+      username: 'Sami',
+      password: 'sami1234',
+    });
+
+    expect(res.user.username).toBe('sami');
+    expect(res.user.displayName).toBe('Samiul Islam');
+    expect(res.token).toContain('u-sami-default-root');
+
+    const profile = mockStorage.getMe();
+    expect(profile.displayName).toBe('Samiul Islam');
+  });
+
+  it('importUser supports seamless multi-device user syncing', () => {
+    mockStorage.importUser({
+      id: 'cloud-user-123',
+      username: 'clouduser',
+      displayName: 'Cloud User',
+      password: 'mypassword123',
+      createdAt: new Date().toISOString(),
+    });
+
+    const res = mockStorage.login({
+      username: 'clouduser',
+      password: 'mypassword123',
+    });
+
+    expect(res.user.id).toBe('cloud-user-123');
+    expect(res.user.displayName).toBe('Cloud User');
+  });
 });

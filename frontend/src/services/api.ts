@@ -16,6 +16,7 @@ import {
   AuthResponse,
 } from '../types/index.js';
 import { mockStorage } from './mockStorage.js';
+import { cloudSync } from './cloudSync.js';
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
 
@@ -85,6 +86,15 @@ function shouldRethrow(err: any): boolean {
   return false;
 }
 
+function triggerCloudDataSync(userId?: string): void {
+  try {
+    const uid = userId || mockStorage.getCurrentUserId();
+    if (!uid || uid === '00000000-0000-0000-0000-000000000001') return;
+    const allData = mockStorage.getAllUserData(uid);
+    cloudSync.saveUserDataToCloud(uid, { ...allData, updatedAt: new Date().toISOString() }).catch(() => {});
+  } catch {}
+}
+
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const url = `${API_BASE_URL}${endpoint}`;
   const token = getAuthToken();
@@ -125,66 +135,113 @@ export const api = {
     confirmPassword?: string;
     displayName?: string;
   }): Promise<AuthResponse> {
+    let authRes: AuthResponse;
+
     if (isStandaloneDemo()) {
-      const res = mockStorage.register(payload);
-      setAuthToken(res.token);
-      setCachedUser(res.user);
-      return res;
-    }
-    try {
-      const res = await request<{ data: AuthResponse }>('/api/v1/auth/register', {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      });
-      setAuthToken(res.data.token);
-      setCachedUser(res.data.user);
-      mockStorage.setActiveSession(res.data.user);
-      return res.data;
-    } catch (err: any) {
-      if (err instanceof ApiError && (err.status === 400 || err.status === 409 || err.status === 422)) {
-        throw err;
-      }
-      // Fallback to local persistent storage if backend is unreachable or proxy returns 500/502/network failure
+      authRes = mockStorage.register(payload);
+    } else {
       try {
-        const res = mockStorage.register(payload);
-        setAuthToken(res.token);
-        setCachedUser(res.user);
-        return res;
-      } catch (mockErr: any) {
-        throw mockErr;
+        const res = await request<{ data: AuthResponse }>('/api/v1/auth/register', {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        });
+        authRes = res.data;
+        mockStorage.setActiveSession(authRes.user);
+      } catch (err: any) {
+        if (err instanceof ApiError && (err.status === 400 || err.status === 409 || err.status === 422)) {
+          throw err;
+        }
+        // Fallback to local persistent storage if backend is unreachable or proxy returns 500/502/network failure
+        authRes = mockStorage.register(payload);
       }
     }
+
+    setAuthToken(authRes.token);
+    setCachedUser(authRes.user);
+
+    // Persist to Cloud Server so the account is immediately accessible across all devices and apps!
+    cloudSync
+      .saveUserToCloud({
+        id: authRes.user.id,
+        username: payload.username.trim(),
+        displayName: authRes.user.displayName,
+        password: payload.password,
+        createdAt: authRes.user.createdAt,
+      })
+      .catch((e) => console.warn('Cloud sync registration backup:', e));
+
+    return authRes;
   },
 
   async login(payload: { username: string; password: string }): Promise<AuthResponse> {
-    if (isStandaloneDemo()) {
+    const cleanUsername = payload.username.trim().toLowerCase();
+
+    // 1. Try local mockStorage first (instant)
+    try {
       const res = mockStorage.login(payload);
       setAuthToken(res.token);
       setCachedUser(res.user);
+
+      // Save user to cloud in background as well to ensure it is always synced
+      cloudSync
+        .saveUserToCloud({
+          id: res.user.id,
+          username: res.user.username,
+          displayName: res.user.displayName,
+          password: payload.password,
+          createdAt: res.user.createdAt,
+        })
+        .catch(() => {});
+
       return res;
-    }
-    try {
-      const res = await request<{ data: AuthResponse }>('/api/v1/auth/login', {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      });
-      setAuthToken(res.data.token);
-      setCachedUser(res.data.user);
-      mockStorage.setActiveSession(res.data.user);
-      return res.data;
-    } catch (err: any) {
-      if (err instanceof ApiError && (err.status === 401 || err.status === 403 || err.status === 400)) {
-        throw err;
-      }
-      // Fallback to local persistent storage if backend is unreachable or returns 500/proxy error
+    } catch (localErr: any) {
+      // 2. If not found locally, query the Cloud Server!
       try {
-        const res = mockStorage.login(payload);
-        setAuthToken(res.token);
-        setCachedUser(res.user);
-        return res;
-      } catch (mockErr: any) {
-        throw mockErr;
+        const cloudUser = await cloudSync.getUserFromCloud(cleanUsername);
+        if (cloudUser) {
+          if (cloudUser.password !== payload.password) {
+            throw new Error('Invalid username or password. Please verify your credentials.');
+          }
+
+          // Import user into local device storage
+          mockStorage.importUser(cloudUser);
+
+          // Restore cloud financial data if available
+          const cloudData = await cloudSync.getUserDataFromCloud(cloudUser.id);
+          if (cloudData) {
+            mockStorage.restoreAllUserData(cloudUser.id, cloudData);
+          }
+
+          const res = mockStorage.login(payload);
+          setAuthToken(res.token);
+          setCachedUser(res.user);
+          return res;
+        }
+      } catch (cloudErr: any) {
+        if (cloudErr.message && cloudErr.message.includes('Invalid username or password')) {
+          throw cloudErr;
+        }
       }
+
+      // 3. Fallback to REST backend if not in standalone mode
+      if (!isStandaloneDemo()) {
+        try {
+          const res = await request<{ data: AuthResponse }>('/api/v1/auth/login', {
+            method: 'POST',
+            body: JSON.stringify(payload),
+          });
+          setAuthToken(res.data.token);
+          setCachedUser(res.data.user);
+          mockStorage.setActiveSession(res.data.user);
+          return res.data;
+        } catch (err: any) {
+          if (err instanceof ApiError && (err.status === 401 || err.status === 403 || err.status === 400)) {
+            throw err;
+          }
+        }
+      }
+
+      throw localErr;
     }
   },
 
@@ -363,19 +420,23 @@ export const api = {
     accountId?: string | null;
     tags?: string;
   }): Promise<Expense> {
+    let result: Expense;
     if (isStandaloneDemo()) {
-      return mockStorage.createExpense(payload);
+      result = mockStorage.createExpense(payload);
+    } else {
+      try {
+        const res = await request<{ data: Expense }>('/api/v1/expenses', {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        });
+        result = res.data;
+      } catch (err) {
+        if (shouldRethrow(err)) throw err;
+        result = mockStorage.createExpense(payload);
+      }
     }
-    try {
-      const res = await request<{ data: Expense }>('/api/v1/expenses', {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      });
-      return res.data;
-    } catch (err) {
-      if (shouldRethrow(err)) throw err;
-      return mockStorage.createExpense(payload);
-    }
+    triggerCloudDataSync();
+    return result;
   },
 
   async updateExpense(
@@ -391,34 +452,39 @@ export const api = {
       tags?: string;
     }
   ): Promise<Expense> {
+    let result: Expense;
     if (isStandaloneDemo()) {
-      return mockStorage.updateExpense(id, payload);
+      result = mockStorage.updateExpense(id, payload);
+    } else {
+      try {
+        const res = await request<{ data: Expense }>(`/api/v1/expenses/${id}`, {
+          method: 'PATCH',
+          body: JSON.stringify(payload),
+        });
+        result = res.data;
+      } catch (err) {
+        if (shouldRethrow(err)) throw err;
+        result = mockStorage.updateExpense(id, payload);
+      }
     }
-    try {
-      const res = await request<{ data: Expense }>(`/api/v1/expenses/${id}`, {
-        method: 'PATCH',
-        body: JSON.stringify(payload),
-      });
-      return res.data;
-    } catch (err) {
-      if (shouldRethrow(err)) throw err;
-      return mockStorage.updateExpense(id, payload);
-    }
+    triggerCloudDataSync();
+    return result;
   },
 
   async deleteExpense(id: string): Promise<void> {
     if (isStandaloneDemo()) {
       mockStorage.deleteExpense(id);
-      return;
+    } else {
+      try {
+        await request<void>(`/api/v1/expenses/${id}`, {
+          method: 'DELETE',
+        });
+      } catch (err) {
+        if (shouldRethrow(err)) throw err;
+        mockStorage.deleteExpense(id);
+      }
     }
-    try {
-      await request<void>(`/api/v1/expenses/${id}`, {
-        method: 'DELETE',
-      });
-    } catch (err) {
-      if (shouldRethrow(err)) throw err;
-      mockStorage.deleteExpense(id);
-    }
+    triggerCloudDataSync();
   },
 
   // Summaries
@@ -484,19 +550,23 @@ export const api = {
     currencyCode?: string;
     referenceDate?: string;
   }): Promise<UserBalance> {
+    let result: UserBalance;
     if (isStandaloneDemo()) {
-      return mockStorage.updateBalance(payload);
+      result = mockStorage.updateBalance(payload);
+    } else {
+      try {
+        const res = await request<{ data: UserBalance }>('/api/v1/balance', {
+          method: 'PUT',
+          body: JSON.stringify(payload),
+        });
+        result = res.data;
+      } catch (err) {
+        if (shouldRethrow(err)) throw err;
+        result = mockStorage.updateBalance(payload);
+      }
     }
-    try {
-      const res = await request<{ data: UserBalance }>('/api/v1/balance', {
-        method: 'PUT',
-        body: JSON.stringify(payload),
-      });
-      return res.data;
-    } catch (err) {
-      if (shouldRethrow(err)) throw err;
-      return mockStorage.updateBalance(payload);
-    }
+    triggerCloudDataSync();
+    return result;
   },
 
   // Budgets
