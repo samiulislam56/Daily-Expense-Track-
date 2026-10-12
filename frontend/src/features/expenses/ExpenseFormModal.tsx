@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Check, Loader2, ArrowDownRight, ArrowUpRight, Wallet, Tag } from 'lucide-react';
+import { X, Check, Loader2, ArrowDownRight, ArrowUpRight, Wallet, Tag, Sparkles, Wand2 } from 'lucide-react';
 import { Category, Expense, Account, TransactionType } from '../../types/index.js';
 import {
   parseAmountToMinor,
@@ -8,6 +8,8 @@ import {
   formatBDT,
 } from '../../lib/utils.js';
 import { CategoryIcon } from '../../components/common/CategoryIcon.js';
+import { useLanguage } from '../../context/LanguageContext.js';
+import { parseNaturalLanguageTransaction } from '../../lib/banglaParser.js';
 
 interface ExpenseFormModalProps {
   isOpen: boolean;
@@ -41,6 +43,7 @@ export const ExpenseFormModal: React.FC<ExpenseFormModalProps> = ({
   defaultType = 'expense',
   onSave,
 }) => {
+  const { lang, t } = useLanguage();
   const [type, setType] = useState<TransactionType>(defaultType);
   const [amountStr, setAmountStr] = useState<string>('');
   const [categoryId, setCategoryId] = useState<string>('');
@@ -49,6 +52,7 @@ export const ExpenseFormModal: React.FC<ExpenseFormModalProps> = ({
   const [note, setNote] = useState<string>('');
   const [tags, setTags] = useState<string>('');
   const [currencyCode, setCurrencyCode] = useState<string>('BDT');
+  const [naturalInput, setNaturalInput] = useState<string>('');
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
@@ -75,6 +79,7 @@ export const ExpenseFormModal: React.FC<ExpenseFormModalProps> = ({
         setTags('');
         setCurrencyCode('BDT');
       }
+      setNaturalInput('');
       setErrors({});
       setIsSubmitting(false);
     }
@@ -87,15 +92,15 @@ export const ExpenseFormModal: React.FC<ExpenseFormModalProps> = ({
 
     const minor = parseAmountToMinor(amountStr);
     if (!amountStr || minor <= 0) {
-      newErrors.amount = 'Please enter a valid amount greater than 0';
+      newErrors.amount = lang === 'bn' ? 'সঠিক টাকার পরিমাণ দিন' : 'Please enter a valid amount greater than 0';
     }
 
     if (!categoryId) {
-      newErrors.category = 'Please select a category';
+      newErrors.category = lang === 'bn' ? 'ক্যাটাগরি নির্বাচন করুন' : 'Please select a category';
     }
 
     if (!expenseDate) {
-      newErrors.expenseDate = 'Date is required';
+      newErrors.expenseDate = lang === 'bn' ? 'তারিখ দিন' : 'Date is required';
     }
 
     setErrors(newErrors);
@@ -132,6 +137,30 @@ export const ExpenseFormModal: React.FC<ExpenseFormModalProps> = ({
     setAmountStr((current + val).toString());
   };
 
+  const handleApplyTemplate = (templateName: string, amount: number, catNameQuery: string) => {
+    setAmountStr(amount.toString());
+    setNote(templateName);
+    const cat = categories.find((c) => c.name.toLowerCase().includes(catNameQuery.toLowerCase()));
+    if (cat) {
+      setCategoryId(cat.id);
+    }
+  };
+
+  const handleParseNatural = () => {
+    if (!naturalInput.trim()) return;
+    const parsed = parseNaturalLanguageTransaction(naturalInput, categories);
+    if (parsed) {
+      if (parsed.amountMinor > 0) {
+        setAmountStr((parsed.amountMinor / 100).toFixed(2));
+      }
+      setType(parsed.type);
+      if (parsed.categoryId) {
+        setCategoryId(parsed.categoryId);
+      }
+      setNote(parsed.note);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
       <div
@@ -148,10 +177,14 @@ export const ExpenseFormModal: React.FC<ExpenseFormModalProps> = ({
             </div>
             <div>
               <h2 id="modal-title" className="text-lg font-bold text-[var(--text-ink)]">
-                {initialExpense ? 'Edit Transaction' : 'Quick Add Transaction'}
+                {initialExpense
+                  ? (lang === 'bn' ? 'হিসাব পরিবর্তন' : 'Edit Transaction')
+                  : (lang === 'bn' ? 'দ্রুত লেনদেন লিখুন' : 'Quick Add Transaction')}
               </h2>
               <p className="text-xs text-[var(--text-muted)]">
-                {type === 'income' ? 'Record incoming cash or deposit' : 'Record an expense outflow'}
+                {type === 'income'
+                  ? (lang === 'bn' ? 'জমা বা উপার্জনের হিসাব' : 'Record incoming cash or deposit')
+                  : (lang === 'bn' ? 'দৈনন্দিন ব্যয়ের হিসাব' : 'Record an expense outflow')}
               </p>
             </div>
           </div>
@@ -172,6 +205,65 @@ export const ExpenseFormModal: React.FC<ExpenseFormModalProps> = ({
             </div>
           )}
 
+          {/* Natural Language Assistant Bar */}
+          {!initialExpense && (
+            <div className="p-3 rounded-xl bg-surface-elevated/70 border border-border space-y-1.5">
+              <label className="text-[11px] font-semibold text-ink-muted flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                <span>{lang === 'bn' ? 'স্বয়ংক্রিয় এন্ট্রি (বাংলা বা ইংরেজিতে লিখুন):' : 'Magic Autofill (Type in Bangla or English):'}</span>
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder={lang === 'bn' ? 'যেমন: রিকশা ভাড়া ৫০ টাকা বা দুপুরের খাবার ১২০' : 'e.g. Lunch 150 tk or Rickshaw 50'}
+                  value={naturalInput}
+                  onChange={(e) => setNaturalInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleParseNatural();
+                    }
+                  }}
+                  className="flex-1 px-3 py-1.5 text-xs rounded-lg bg-surface border border-border text-ink focus:outline-none focus:border-emerald-500"
+                />
+                <button
+                  type="button"
+                  onClick={handleParseNatural}
+                  className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shrink-0 transition-all active:scale-95"
+                >
+                  {lang === 'bn' ? 'শনাক্ত' : 'Detect'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Quick Frequent Templates */}
+          {!initialExpense && (
+            <div className="space-y-1.5">
+              <span className="text-[11px] font-semibold text-ink-muted block">
+                {lang === 'bn' ? 'জনপ্রিয় টেমপ্লেট (১-ট্যাপে এন্ট্রি):' : 'Quick Frequent Templates:'}
+              </span>
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  { name: lang === 'bn' ? 'দুপুরের খাবার' : 'Lunch', amt: 150, cat: 'Food' },
+                  { name: lang === 'bn' ? 'রিকশা / বাস' : 'Rickshaw', amt: 50, cat: 'Transport' },
+                  { name: lang === 'bn' ? 'চা ও নাশতা' : 'Tea & Snacks', amt: 60, cat: 'Food' },
+                  { name: lang === 'bn' ? 'মোবাইল রিচার্জ' : 'Recharge', amt: 100, cat: 'Bill' },
+                  { name: lang === 'bn' ? 'মুদি সদাই' : 'Groceries', amt: 850, cat: 'Food' },
+                ].map((tpl, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => handleApplyTemplate(tpl.name, tpl.amt, tpl.cat)}
+                    className="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-surface-elevated hover:bg-surface-subtle border border-border text-ink transition-all active:scale-95"
+                  >
+                    {tpl.name} ৳{tpl.amt}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Type Toggle */}
           <div className="grid grid-cols-2 gap-2 p-1 bg-[var(--surface-elevated)] rounded-xl border border-[var(--border)]">
             <button
@@ -184,7 +276,7 @@ export const ExpenseFormModal: React.FC<ExpenseFormModalProps> = ({
               }`}
             >
               <ArrowUpRight className="w-3.5 h-3.5" />
-              <span>Expense Outflow</span>
+              <span>{lang === 'bn' ? 'খরচ (Expense)' : 'Expense Outflow'}</span>
             </button>
             <button
               type="button"
@@ -196,7 +288,7 @@ export const ExpenseFormModal: React.FC<ExpenseFormModalProps> = ({
               }`}
             >
               <ArrowDownRight className="w-3.5 h-3.5" />
-              <span>Income Inflow</span>
+              <span>{lang === 'bn' ? 'আয় (Income)' : 'Income Inflow'}</span>
             </button>
           </div>
 

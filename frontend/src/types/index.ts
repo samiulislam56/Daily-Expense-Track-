@@ -207,4 +207,4 @@ export interface CopilotChatMessage {
 }
 
 export type ThemeMode = 'light' | 'dark' | 'system';
-export type ActiveTab = 'overview' | 'history' | 'analytics' | 'budgets' | 'goals' | 'copilot' | 'calculator' | 'settings';
+export type ActiveTab = 'overview' | 'history' | 'analytics' | 'budgets' | 'goals' | 'forecast' | 'simulator' | 'copilot' | 'calculator' | 'settings';

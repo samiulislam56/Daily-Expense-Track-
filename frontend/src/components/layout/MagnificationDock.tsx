@@ -15,8 +15,11 @@ import {
   Sparkles,
   Calculator,
   Settings,
+  TrendingUp,
+  Sliders,
 } from 'lucide-react';
 import { ActiveTab } from '../../types/index.js';
+import { useLanguage } from '../../context/LanguageContext.js';
 
 interface DockItemProps {
   id: ActiveTab;
@@ -94,16 +97,19 @@ export const MagnificationDock: React.FC<MagnificationDockProps> = ({
   onTabChange,
 }) => {
   const mouseX = useMotionValue(Infinity);
+  const { t } = useLanguage();
 
   const navItems: Array<{ id: ActiveTab; label: string; icon: React.ElementType }> = [
-    { id: 'overview', label: 'Overview', icon: LayoutDashboard },
-    { id: 'history', label: 'Transactions', icon: CalendarDays },
-    { id: 'budgets', label: 'Budgets', icon: Target },
-    { id: 'goals', label: 'Goals & Bills', icon: PiggyBank },
-    { id: 'copilot', label: 'AI Copilot', icon: Sparkles },
-    { id: 'analytics', label: 'Analytics', icon: PieChart },
-    { id: 'calculator', label: 'Calculator', icon: Calculator },
-    { id: 'settings', label: 'Settings', icon: Settings },
+    { id: 'overview', label: t('overview'), icon: LayoutDashboard },
+    { id: 'history', label: t('history'), icon: CalendarDays },
+    { id: 'budgets', label: t('budgets'), icon: Target },
+    { id: 'forecast', label: t('forecast'), icon: TrendingUp },
+    { id: 'simulator', label: t('simulator'), icon: Sliders },
+    { id: 'goals', label: t('goals'), icon: PiggyBank },
+    { id: 'copilot', label: t('copilot'), icon: Sparkles },
+    { id: 'analytics', label: t('analytics'), icon: PieChart },
+    { id: 'calculator', label: t('calculator'), icon: Calculator },
+    { id: 'settings', label: t('settings'), icon: Settings },
   ];
 
   return (

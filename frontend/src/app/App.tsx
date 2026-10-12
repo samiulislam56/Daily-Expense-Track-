@@ -25,6 +25,13 @@ import { SavingsGoalsView } from '../features/goals/SavingsGoalsView.js';
 import { RecurringPaymentsView } from '../features/recurring/RecurringPaymentsView.js';
 import { CopilotView } from '../features/copilot/CopilotView.js';
 import { AuthView } from '../features/auth/AuthView.js';
+import { ThreeQuestionsCard } from '../features/analytics/ThreeQuestionsCard.js';
+import { SafeToSpendWidget } from '../features/safetospend/SafeToSpendWidget.js';
+import { SmartMoneyForecast } from '../features/forecast/SmartMoneyForecast.js';
+import { WhatIfSimulator } from '../features/simulator/WhatIfSimulator.js';
+import { WeeklyMoneyCheckin } from '../features/checkin/WeeklyMoneyCheckin.js';
+import { calculateSafeToSpend, ScheduledCashFlowEvent } from '../lib/fintech.js';
+import { LanguageProvider, useLanguage } from '../context/LanguageContext.js';
 import { useAuth } from '../context/AuthContext.js';
 
 import { useTheme } from '../hooks/useTheme.js';
@@ -46,9 +53,10 @@ import {
 } from '../hooks/useExpenseQueries.js';
 import { ActiveTab, Expense, ExpenseFilters, CopilotDraftTransaction } from '../types/index.js';
 import { getTodayDateString, getCurrentMonthString, formatBDT } from '../lib/utils.js';
-import { Wallet, Sparkles, AlertCircle, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { Wallet, Sparkles, AlertCircle, ArrowUpRight, ArrowDownRight, CalendarCheck, TrendingUp, Sliders } from 'lucide-react';
 
 const AuthenticatedDashboard: React.FC = () => {
+  const { lang, t } = useLanguage();
   const { theme, setTheme } = useTheme();
   const [activeTab, setActiveTab] = useState<ActiveTab>('overview');
   const [selectedDate, setSelectedDate] = useState<string>(getTodayDateString());
@@ -78,6 +86,7 @@ const AuthenticatedDashboard: React.FC = () => {
   // Modals state
   const [isAddModalOpen, setIsAddModalOpen] = useState<boolean>(false);
   const [isEditBalanceOpen, setIsEditBalanceOpen] = useState<boolean>(false);
+  const [isWeeklyCheckinOpen, setIsWeeklyCheckinOpen] = useState<boolean>(false);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [expenseToDelete, setExpenseToDelete] = useState<Expense | null>(null);
   const [deleteErrorMessage, setDeleteErrorMessage] = useState<string | null>(null);
@@ -109,6 +118,38 @@ const AuthenticatedDashboard: React.FC = () => {
   const { data: budgets = [] } = useBudgets(currentMonth);
   const { data: goals = [] } = useGoals();
   const { data: recurring = [] } = useRecurring();
+
+  // Deterministic financial calculations for DailyFlow 2.0
+  const upcomingBillsMinor = useMemo(() => {
+    return recurring
+      .filter((r) => r.type === 'expense' && r.isActive)
+      .reduce((sum, r) => sum + r.amountMinor, 0);
+  }, [recurring]);
+
+  const upcomingBillsCount = useMemo(() => {
+    return recurring.filter((r) => r.type === 'expense' && r.isActive).length;
+  }, [recurring]);
+
+  const dailySafeToSpendMinor = useMemo(() => {
+    if (balanceData?.availableBalanceMinor == null) return 0;
+    const safe = calculateSafeToSpend({
+      currentBalanceMinor: balanceData.availableBalanceMinor,
+      upcomingBillsMinor,
+      savingsCommitmentsMinor: 200000,
+      emergencyBufferMinor: 300000,
+      daysUntilIncome: 14,
+    });
+    return safe.dailySafeToSpendMinor;
+  }, [balanceData?.availableBalanceMinor, upcomingBillsMinor]);
+
+  const scheduledEvents: ScheduledCashFlowEvent[] = useMemo(() => {
+    return recurring.map((r) => ({
+      date: r.nextDueDate,
+      amountMinor: r.amountMinor,
+      title: r.categoryName || (r.type === 'income' ? 'Scheduled Income' : 'Recurring Bill'),
+      type: r.type,
+    }));
+  }, [recurring]);
 
   // Overview expenses filter vs History filters
   const effectiveFilters = useMemo(() => {
@@ -270,6 +311,65 @@ const AuthenticatedDashboard: React.FC = () => {
             <DailyExpenseReminder
               todayExpenseCount={todaySummary?.count ?? 0}
               onOpenAddExpense={() => handleOpenAdd()}
+            />
+
+            {/* DailyFlow 2.0 Feature Banner: Weekly Review & Forecast Quick Links */}
+            <div className="flex items-center justify-between flex-wrap gap-3 p-3.5 sm:p-4 rounded-2xl bg-[var(--surface)] border border-[var(--border)] shadow-sm">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                  <CalendarCheck className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-[var(--text-ink)]">
+                      {lang === 'bn' ? 'সাপ্তাহিক মানি চেক-ইন ও আর্থিক পরামর্শ' : 'Weekly Money Check-in & Habit Guidance'}
+                    </span>
+                    <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                      7 Days
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-[var(--text-muted)] line-clamp-1">
+                    {lang === 'bn'
+                      ? 'গত ৭ দিনের আয়-ব্যয়, শীর্ষ ক্যাটাগরি এবং সচেতন খরচের দিকনির্দেশনা দেখুন'
+                      : 'Non-judgmental review of your last 7 days of income, expenses, and savings tips'}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsWeeklyCheckinOpen(true)}
+                  className="px-3.5 py-1.5 rounded-xl bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-xs font-bold shadow-sm transition-all flex items-center gap-1.5"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>{t('weeklyCheckin')}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('forecast')}
+                  className="px-3 py-1.5 rounded-xl bg-[var(--surface-elevated)] hover:bg-[var(--surface-subtle)] text-[var(--text-ink)] border border-[var(--border)] text-xs font-semibold transition-all flex items-center gap-1.5"
+                >
+                  <TrendingUp className="w-3.5 h-3.5 text-[var(--accent)]" />
+                  <span>{t('forecast')}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Signature Feature: 3 Essential Dashboard Questions */}
+            <ThreeQuestionsCard
+              availableBalanceMinor={balanceData?.availableBalanceMinor ?? null}
+              upcomingBillsMinor={upcomingBillsMinor}
+              upcomingBillsCount={upcomingBillsCount}
+              dailySafeToSpendMinor={dailySafeToSpendMinor}
+              onOpenEditBalance={() => setIsEditBalanceOpen(true)}
+              onNavigateToTab={setActiveTab}
+            />
+
+            {/* Signature Feature: Safe-to-Spend Interactive Engine */}
+            <SafeToSpendWidget
+              currentBalanceMinor={balanceData?.availableBalanceMinor ?? null}
+              upcomingBillsMinor={upcomingBillsMinor}
+              onOpenEditBalance={() => setIsEditBalanceOpen(true)}
             />
 
             {/* Dashboard Summary Metrics */}
@@ -450,6 +550,27 @@ const AuthenticatedDashboard: React.FC = () => {
               currentMonth={currentMonth}
               onSetBudget={setBudgetMutation.mutateAsync}
               onDeleteBudget={deleteBudgetMutation.mutateAsync}
+            />
+          </div>
+        )}
+
+        {/* TAB: SMART MONEY FORECAST (30-DAY CASH-FLOW TRAJECTORY) */}
+        {activeTab === 'forecast' && (
+          <div className="max-w-5xl mx-auto">
+            <SmartMoneyForecast
+              currentBalanceMinor={balanceData?.availableBalanceMinor ?? null}
+              scheduledEvents={scheduledEvents}
+              historicalDailyAverageMinor={todaySummary?.averageMinor || 45000}
+            />
+          </div>
+        )}
+
+        {/* TAB: WHAT-IF SIMULATOR (ZERO-RISK DECISION SANDBOX) */}
+        {activeTab === 'simulator' && (
+          <div className="max-w-5xl mx-auto">
+            <WhatIfSimulator
+              currentBalanceMinor={balanceData?.availableBalanceMinor ?? null}
+              upcomingBillsMinor={upcomingBillsMinor}
             />
           </div>
         )}
@@ -653,6 +774,16 @@ const AuthenticatedDashboard: React.FC = () => {
         }}
       />
 
+      {/* Weekly Money Check-in Modal */}
+      <WeeklyMoneyCheckin
+        isOpen={isWeeklyCheckinOpen}
+        onClose={() => setIsWeeklyCheckinOpen(false)}
+        expenses={allHistoricalExpenses.length > 0 ? allHistoricalExpenses : expenses}
+        budgets={budgets}
+        goals={goals}
+        recurring={recurring}
+      />
+
       {/* PWA Update Toast Notification */}
       <PWAUpdateToast />
 
@@ -671,7 +802,7 @@ const AuthenticatedDashboard: React.FC = () => {
   );
 };
 
-export const App: React.FC = () => {
+const AppContent: React.FC = () => {
   const { user, isAuthenticated, isLoading } = useAuth();
 
   if (isLoading) {
@@ -693,4 +824,12 @@ export const App: React.FC = () => {
   }
 
   return <AuthenticatedDashboard key={user.id} />;
+};
+
+export const App: React.FC = () => {
+  return (
+    <LanguageProvider>
+      <AppContent />
+    </LanguageProvider>
+  );
 };
