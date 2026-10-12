@@ -327,70 +327,61 @@ class MockStorageService {
   public login(payload: { username: string; password: string }): AuthResponse {
     const cleanUsername = payload.username.trim().toLowerCase();
 
-    // 1. Built-in system profiles (demo_user, sami, samiul)
-    const SYSTEM_USERS = [
-      {
-        id: '00000000-0000-0000-0000-000000000001',
-        username: 'demo_user',
-        displayName: 'Demo User',
-        password: 'password123',
-        createdAt: '2026-01-01T00:00:00.000Z',
-      },
-      {
-        id: 'u-sami-default-root',
-        username: 'sami',
-        displayName: 'Samiul Islam',
-        password: 'sami1234',
-        createdAt: '2026-01-01T00:00:00.000Z',
-      },
-      {
-        id: 'u-samiul-default-root',
-        username: 'samiul',
-        displayName: 'Samiul Islam',
-        password: 'sami1234',
-        createdAt: '2026-01-01T00:00:00.000Z',
-      },
-    ];
-
-    const matchedSystem = SYSTEM_USERS.find(
-      (u) => u.username.toLowerCase() === cleanUsername && u.password === payload.password
-    );
-
-    if (matchedSystem) {
-      this.setCurrentUserId(matchedSystem.id);
-      return {
-        token: `demo_token_${matchedSystem.id}`,
-        user: {
-          id: matchedSystem.id,
-          username: matchedSystem.username,
-          displayName: matchedSystem.displayName,
-          createdAt: matchedSystem.createdAt,
-        },
-      };
-    }
-
-    // 2. Local device registered users
+    // 1. Check registered users on this device/session first (each user's custom credentials)
     const users = this.getStorageItem<Array<{ id: string; username: string; password: string; displayName: string; createdAt: string }>>(
       'dailyflow_users_list',
       []
     );
     const found = users.find((u) => u.username.toLowerCase() === cleanUsername);
 
-    if (!found || found.password !== payload.password) {
-      throw new Error('Invalid username or password.');
+    if (found) {
+      if (found.password !== payload.password) {
+        throw new Error('Invalid username or password.');
+      }
+      this.setCurrentUserId(found.id);
+      return {
+        token: `demo_token_${found.id}`,
+        user: {
+          id: found.id,
+          username: found.username,
+          displayName: found.displayName,
+          createdAt: found.createdAt,
+        },
+      };
     }
 
-    this.setCurrentUserId(found.id);
+    // 2. Built-in profile fallbacks (allowing Sami with password 123 or sami1234)
+    if (cleanUsername === 'sami' || cleanUsername === 'samiul') {
+      if (payload.password === '123' || payload.password === 'sami1234') {
+        const samiId = 'u-sami-default-root';
+        this.setCurrentUserId(samiId);
+        return {
+          token: `demo_token_${samiId}`,
+          user: {
+            id: samiId,
+            username: cleanUsername,
+            displayName: 'Samiul Islam',
+            createdAt: '2026-01-01T00:00:00.000Z',
+          },
+        };
+      }
+    }
 
-    return {
-      token: `demo_token_${found.id}`,
-      user: {
-        id: found.id,
-        username: found.username,
-        displayName: found.displayName,
-        createdAt: found.createdAt,
-      },
-    };
+    if (cleanUsername === 'demo_user' && payload.password === 'password123') {
+      const demoId = '00000000-0000-0000-0000-000000000001';
+      this.setCurrentUserId(demoId);
+      return {
+        token: `demo_token_${demoId}`,
+        user: {
+          id: demoId,
+          username: 'demo_user',
+          displayName: 'Demo User',
+          createdAt: '2026-01-01T00:00:00.000Z',
+        },
+      };
+    }
+
+    throw new Error('Invalid username or password.');
   }
 
   public getMe(): UserProfile {

@@ -147,7 +147,7 @@ describe('Frontend Multi-User Authentication & Data Isolation Tests', () => {
   it('Default Sami profile logs in successfully across all environments with null initial balance', () => {
     const res = mockStorage.login({
       username: 'Sami',
-      password: 'sami1234',
+      password: '123',
     });
 
     expect(res.user.username).toBe('sami');
@@ -156,6 +156,50 @@ describe('Frontend Multi-User Authentication & Data Isolation Tests', () => {
 
     const profile = mockStorage.getMe();
     expect(profile.displayName).toBe('Samiul Islam');
+
+    // Also supports sami1234
+    const resAlt = mockStorage.login({
+      username: 'sami',
+      password: 'sami1234',
+    });
+    expect(resAlt.user.username).toBe('sami');
+  });
+
+  it('Different users have their own distinct credentials and cannot login with another user password', () => {
+    const user1 = `user_unique_${Date.now()}`;
+    const user2 = `user_other_${Date.now()}`;
+
+    mockStorage.register({
+      username: user1,
+      password: 'mypassword_alpha',
+    });
+
+    mockStorage.register({
+      username: user2,
+      password: 'mypassword_beta',
+    });
+
+    // User 1 logs in with their own password
+    const res1 = mockStorage.login({
+      username: user1,
+      password: 'mypassword_alpha',
+    });
+    expect(res1.user.username).toBe(user1);
+
+    // User 1 FAILS with User 2's password
+    expect(() => {
+      mockStorage.login({
+        username: user1,
+        password: 'mypassword_beta',
+      });
+    }).toThrow(/Invalid username or password/i);
+
+    // User 2 logs in with their own password
+    const res2 = mockStorage.login({
+      username: user2,
+      password: 'mypassword_beta',
+    });
+    expect(res2.user.username).toBe(user2);
   });
 
   it('importUser supports seamless multi-device user syncing', () => {
