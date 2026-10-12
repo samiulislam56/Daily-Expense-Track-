@@ -9,6 +9,8 @@ import {
   FileText,
   ShieldCheck,
   CheckCircle2,
+  Smartphone,
+  Download,
 } from 'lucide-react';
 import { ThemeMode } from '../../types/index.js';
 
@@ -17,6 +19,8 @@ interface SettingsViewProps {
   onThemeChange: (theme: ThemeMode) => void;
   currency: string;
   onCurrencyChange: (currency: string) => void;
+  onOpenInstallModal?: () => void;
+  isInstalled?: boolean;
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({
@@ -24,6 +28,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onThemeChange,
   currency,
   onCurrencyChange,
+  onOpenInstallModal,
+  isInstalled = false,
 }) => {
   const [healthStatus, setHealthStatus] = useState<'checking' | 'healthy' | 'offline'>('checking');
 
@@ -105,7 +111,49 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         </div>
       </div>
 
-      {/* 3. System & API Health Status */}
+      {/* 3. Mobile App Installation (Android & iOS) */}
+      <div className="p-5 rounded-2xl bg-surface border border-border shadow-card">
+        <div className="flex items-start justify-between gap-4">
+          <div className="space-y-1">
+            <h3 className="text-sm font-bold text-ink flex items-center gap-2">
+              <Smartphone className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              <span>Mobile App Installation (Android & iOS)</span>
+            </h3>
+            <p className="text-xs text-ink-muted">
+              Install DailyFlow as a native-feel Progressive Web App on Android, iPhone, iPad, or Desktop with full offline support.
+            </p>
+          </div>
+          <span
+            className={`shrink-0 inline-flex items-center gap-1.5 font-semibold text-xs px-2.5 py-1 rounded-full ${
+              isInstalled
+                ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
+                : 'bg-teal-500/15 text-teal-700 dark:text-teal-300'
+            }`}
+          >
+            {isInstalled ? 'Installed' : 'Ready to Install'}
+          </span>
+        </div>
+
+        {onOpenInstallModal && (
+          <div className="mt-4 pt-4 border-t border-border flex items-center justify-between flex-wrap gap-3">
+            <span className="text-xs text-ink-muted">
+              {isInstalled
+                ? 'DailyFlow is running in standalone app mode.'
+                : 'Tap to view step-by-step instructions or install directly.'}
+            </span>
+            <button
+              type="button"
+              onClick={onOpenInstallModal}
+              className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs shadow-sm transition-all active:scale-95"
+            >
+              <Download className="w-4 h-4" />
+              <span>{isInstalled ? 'View App Info' : 'Install App on Phone'}</span>
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* 4. System & API Health Status */}
       <div className="p-5 rounded-2xl bg-surface border border-border shadow-card">
         <h3 className="text-sm font-bold text-ink mb-3 flex items-center gap-2">
           <Activity className="w-4 h-4 text-teal-600 dark:text-teal-400" />

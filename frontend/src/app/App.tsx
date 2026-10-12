@@ -5,7 +5,7 @@ import { MobileBottomNav } from '../components/layout/MobileBottomNav.js';
 import { ScrollJourneyLine } from '../components/layout/ScrollJourneyLine.js';
 import { ToastContainer, ToastMessage } from '../components/common/Toast.js';
 import { PWAUpdateToast } from '../components/common/PWAUpdateToast.js';
-import { IOSInstallModal } from '../components/common/IOSInstallModal.js';
+import { InstallAppModal } from '../components/common/InstallAppModal.js';
 import { DashboardMetrics } from '../features/analytics/DashboardMetrics.js';
 import { CategoryAnalytics } from '../features/analytics/CategoryAnalytics.js';
 import { ExpenseTrendGraph } from '../features/analytics/ExpenseTrendGraph.js';
@@ -58,7 +58,15 @@ const AuthenticatedDashboard: React.FC = () => {
   const [goalsSubTab, setGoalsSubTab] = useState<'goals' | 'recurring' | 'accounts'>('goals');
 
   // PWA and offline status
-  const { canInstall, isInstalled, showIOSModal, setShowIOSModal, promptInstall } = usePWAInstall();
+  const {
+    canInstall,
+    isInstalled,
+    isIOS,
+    hasNativePrompt,
+    showInstallModal,
+    setShowInstallModal,
+    promptInstall,
+  } = usePWAInstall();
   const syncStatus = useSyncStatus();
 
   // Filters state
@@ -249,7 +257,7 @@ const AuthenticatedDashboard: React.FC = () => {
         onThemeChange={setTheme}
         canInstall={canInstall}
         isInstalled={isInstalled}
-        onInstallClick={promptInstall}
+        onInstallClick={() => setShowInstallModal(true)}
         syncStatus={syncStatus}
       />
 
@@ -581,6 +589,8 @@ const AuthenticatedDashboard: React.FC = () => {
               onThemeChange={setTheme}
               currency={currency}
               onCurrencyChange={setCurrency}
+              onOpenInstallModal={() => setShowInstallModal(true)}
+              isInstalled={isInstalled}
             />
           </div>
         )}
@@ -636,10 +646,13 @@ const AuthenticatedDashboard: React.FC = () => {
       {/* PWA Update Toast Notification */}
       <PWAUpdateToast />
 
-      {/* iOS Safari Home Screen Instructions Modal */}
-      <IOSInstallModal
-        isOpen={showIOSModal}
-        onClose={() => setShowIOSModal(false)}
+      {/* PWA Install Modal (Android & iOS) */}
+      <InstallAppModal
+        isOpen={showInstallModal}
+        onClose={() => setShowInstallModal(false)}
+        hasNativePrompt={hasNativePrompt}
+        onNativeInstall={promptInstall}
+        defaultPlatform={isIOS ? 'ios' : 'android'}
       />
 
       {/* Toast Feedback Region */}

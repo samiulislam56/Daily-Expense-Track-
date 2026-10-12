@@ -180,16 +180,16 @@ export const Header: React.FC<HeaderProps> = ({
           )}
 
           {/* PWA Install Button */}
-          {canInstall && !isInstalled && onInstallClick && (
+          {!isInstalled && onInstallClick && (
             <button
               type="button"
               onClick={onInstallClick}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-teal-500/40 bg-teal-500/10 hover:bg-teal-500/20 text-teal-700 dark:text-teal-300 text-xs font-semibold shadow-subtle transition-all active:scale-95"
-              title="Install DailyFlow as a native app on your device"
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl border border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-xs font-semibold shadow-subtle transition-all active:scale-95"
+              title="Install DailyFlow on Android, iPhone, or Desktop"
               aria-label="Install DailyFlow App"
             >
-              <Download className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
-              <span className="hidden sm:inline">Install App</span>
+              <Download className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+              <span className="hidden xs:inline">Install App</span>
             </button>
           )}
 

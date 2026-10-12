@@ -13,7 +13,8 @@ export function usePWAInstall() {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [isInstalled, setIsInstalled] = useState<boolean>(false);
   const [isIOS, setIsIOS] = useState<boolean>(false);
-  const [showIOSModal, setShowIOSModal] = useState<boolean>(false);
+  const [isAndroid, setIsAndroid] = useState<boolean>(false);
+  const [showInstallModal, setShowInstallModal] = useState<boolean>(false);
   const [installOutcome, setInstallOutcome] = useState<'accepted' | 'dismissed' | null>(null);
 
   useEffect(() => {
@@ -28,10 +29,12 @@ export function usePWAInstall() {
       setIsInstalled(true);
     }
 
-    // Detect iOS
     const userAgent = typeof window !== 'undefined' ? window.navigator.userAgent : '';
     const iOSDevice = /iPad|iPhone|iPod/.test(userAgent) && !(window as any).MSStream;
-    setIsIOS(iOSDevice && !isStandalone);
+    const androidDevice = /Android/i.test(userAgent);
+
+    setIsIOS(Boolean(iOSDevice && !isStandalone));
+    setIsAndroid(Boolean(androidDevice && !isStandalone));
 
     // Listen for beforeinstallprompt
     const handleBeforeInstallPrompt = (e: Event) => {
@@ -43,6 +46,7 @@ export function usePWAInstall() {
     const handleAppInstalled = () => {
       setIsInstalled(true);
       setDeferredPrompt(null);
+      setShowInstallModal(false);
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
@@ -54,7 +58,7 @@ export function usePWAInstall() {
     };
   }, []);
 
-  const promptInstall = useCallback(async (): Promise<'accepted' | 'dismissed' | 'manual_ios' | 'unsupported'> => {
+  const promptInstall = useCallback(async (): Promise<'accepted' | 'dismissed' | 'modal_opened'> => {
     if (deferredPrompt) {
       try {
         await deferredPrompt.prompt();
@@ -67,23 +71,23 @@ export function usePWAInstall() {
         return choice.outcome;
       } catch (err) {
         console.error('Error during PWA install prompt:', err);
-        return 'unsupported';
+        setShowInstallModal(true);
+        return 'modal_opened';
       }
-    } else if (isIOS) {
-      setShowIOSModal(true);
-      return 'manual_ios';
     } else {
-      return 'unsupported';
+      setShowInstallModal(true);
+      return 'modal_opened';
     }
-  }, [deferredPrompt, isIOS]);
+  }, [deferredPrompt]);
 
   return {
-    canInstall: Boolean(deferredPrompt) || (isIOS && !isInstalled),
+    canInstall: !isInstalled,
     hasNativePrompt: Boolean(deferredPrompt),
     isInstalled,
     isIOS,
-    showIOSModal,
-    setShowIOSModal,
+    isAndroid,
+    showInstallModal,
+    setShowInstallModal,
     installOutcome,
     promptInstall,
   };
